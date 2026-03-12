@@ -169,6 +169,8 @@ class CardDispatcher:
         title: str,
         content: str,
         template_color: str,
+        card_id: Optional[int] = None,
+        timestamp: Optional[str] = None,
     ) -> Optional[str]:
         """发送普通卡片
 
@@ -178,6 +180,8 @@ class CardDispatcher:
             title: 卡片标题
             content: 内容（纯内容）
             template_color: 卡片颜色
+            card_id: 卡片编号（可选）
+            timestamp: 时间戳（可选）
 
         Returns:
             Optional[str]: 飞书消息 ID
@@ -185,13 +189,14 @@ class CardDispatcher:
         # 构建 NormalizedCard（包含元数据）
         from src.interfaces.im_platform import NormalizedCard
 
-        # 创建 NormalizedCard（会自动添加编号和时间戳到 content）
-        # 注意：这里传入的是纯内容，NormalizedCard 会添加元数据
+        # 创建 NormalizedCard（传入 card_id 和 timestamp，避免重复生成）
         card = NormalizedCard(
             card_type=card_type,
             title=title,
             content=content,
             template_color=template_color,
+            card_id=card_id,
+            timestamp=timestamp,
         )
 
         # 发送卡片
@@ -285,12 +290,12 @@ class CardDispatcher:
 
             # 发送说明卡片（包含编号和时间）
             feishu_message_id = await self._send_normal_card(
-                user_id, card_type, title, display_content, template_color
+                user_id, card_type, title, display_content, template_color, card_id, timestamp
             )
         else:
             # 直接发送卡片（包含完整内容和元数据）
             feishu_message_id = await self._send_normal_card(
-                user_id, card_type, title, content, template_color
+                user_id, card_type, title, content, template_color, card_id, timestamp
             )
 
         # 3. 存储纯内容到数据库
