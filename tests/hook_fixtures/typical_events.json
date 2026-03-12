@@ -1,0 +1,97 @@
+{
+  "description": "Hook 集成测试使用的典型报文数据 - 完整 stdin 格式，可直接调用 log_hook.py",
+  "generated_at": "2026-03-08",
+  "events": {
+    "user_prompt_submit": {
+      "expected_card_type": "prompt",
+      "expected_color": "blue",
+      "stdin": {
+        "hook_event_name": "UserPromptSubmit",
+        "session_id": "test-session-001",
+        "cwd": "/home/ubuntu/Workspaces/github/larkode",
+        "transcript_path": "/home/ubuntu/.claude/projects/test-session-001/transcript.jsonl",
+        "prompt": "帮我分析一下项目结构，列出主要模块和功能"
+      }
+    },
+    "stop": {
+      "expected_card_type": "stop",
+      "expected_color": "green",
+      "stdin": {
+        "hook_event_name": "Stop",
+        "session_id": "test-session-001",
+        "cwd": "/home/ubuntu/Workspaces/github/larkode",
+        "transcript_path": "/home/ubuntu/.claude/projects/test-session-001/transcript.jsonl",
+        "last_assistant_message": "项目结构分析完成。\n\n主要模块：\n- core: 核心业务逻辑\n- utils: 工具函数\n- handlers: 事件处理器\n- storage: 数据存储"
+      }
+    },
+    "permission_single_select": {
+      "expected_card_type": "permission",
+      "expected_color": "orange",
+      "stdin": {
+        "hook_event_name": "PermissionRequest",
+        "session_id": "dbd0f3df-9706-4548-89a2-895860b40718",
+        "cwd": "/home/ubuntu/Workspaces/github/larkode",
+        "transcript_path": "/home/ubuntu/.claude/projects/-home-ubuntu-Workspaces-github-larkode/dbd0f3df-9706-4548-89a2-895860b40718.jsonl",
+        "permission_mode": "acceptEdits",
+        "tool_name": "AskUserQuestion",
+        "tool_input": {
+          "questions": [
+            {
+              "question": "你想先做哪种语言的国际化？请选择一个选项：",
+              "header": "国际化语言",
+              "multiSelect": false,
+              "options": [
+                {"label": "中文（简体）", "description": "简体中文国际化支持"},
+                {"label": "English", "description": "English internationalization"},
+                {"label": "日本語", "description": "日本語国際化"},
+                {"label": "한국어", "description": "한국어 국제화"}
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "permission_multi_select": {
+      "expected_card_type": "permission",
+      "expected_color": "orange",
+      "stdin": {
+        "hook_event_name": "PermissionRequest",
+        "session_id": "dbd0f3df-9706-4548-89a2-895860b40718",
+        "cwd": "/home/ubuntu/Workspaces/github/larkode",
+        "transcript_path": "/home/ubuntu/.claude/projects/-home-ubuntu-Workspaces-github-larkode/dbd0f3df-9706-4548-89a2-895860b40718.jsonl",
+        "permission_mode": "acceptEdits",
+        "tool_name": "AskUserQuestion",
+        "tool_input": {
+          "questions": [
+            {
+              "question": "你想做哪些语言的国际化？可以多选：",
+              "header": "国际化语言",
+              "multiSelect": true,
+              "options": [
+                {"label": "中文（简体）", "description": "简体中文国际化支持"},
+                {"label": "English", "description": "English internationalization"},
+                {"label": "日本語", "description": "日本語国際化"},
+                {"label": "한국어", "description": "한국어 국제화"}
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "permission_bash": {
+      "expected_card_type": "permission",
+      "expected_color": "orange",
+      "stdin": {
+        "hook_event_name": "PermissionRequest",
+        "session_id": "test-session-001",
+        "cwd": "/home/ubuntu/Workspaces/github/larkode",
+        "transcript_path": "/home/ubuntu/.claude/projects/test-session-001/transcript.jsonl",
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "ls -la",
+          "description": "列出当前目录的文件"
+        }
+      }
+    }
+  }
+}
