@@ -229,19 +229,22 @@ After configuration, restart Claude Code service for changes to take effect.
 
 Ensure your Feishu app has the following permissions:
 
-**Required Permissions (4):**
+**Required Permissions (5):**
 | Permission | Description |
 |------------|-------------|
 | `im:message:readonly` | Get single chat, group messages |
 | `im:message.p2p_msg:readonly` | Read single chat messages sent by users to bot |
 | `im:message:send_as_bot` | Send messages as app |
 | `im:resource` | Get and upload image or file resources |
+| `cardkit:card:write` | Create and update cards (required for streaming output) |
 
 **API Call List:**
 1. `im.v1.message.create` - Send text/card/file messages
 2. `im.v1.message_resource.get` - Download images in messages
 3. `im.v1.file.create` - Upload files/images return file_key
-4. WebSocket (`wss://open.feishu.cn/open-apis/ws/v4/app/...`) - Receive message events
+4. `cardkit.v1.card.create` - Create card entities (streaming output)
+5. `cardkit.v1.card.update` - Update card content (streaming output)
+6. WebSocket (`wss://open.feishu.cn/open-apis/ws/v4/app/...`) - Receive message events
 
 **Permission Application Location:** Feishu Open Platform → App Details → Permission Management
 

@@ -1,6 +1,7 @@
 """
 飞书 API 客户端：消息、用户操作
 """
+import asyncio
 from typing import Optional, Dict, Any
 
 from src.config.settings import get_settings
@@ -80,11 +81,9 @@ class FeishuAPI:
 
             # 发送消息（同步方法，需要在异步环境中包装）
             import asyncio
-            loop = asyncio.get_running_loop()
-            logger.info(f"获取 event loop: {loop}")
+            logger.info(f"准备调用 asyncio.to_thread")
 
-            logger.info("准备调用 loop.run_in_executor")
-            response = await loop.run_in_executor(None, client.im.v1.message.create, request)
+            response = await asyncio.to_thread(client.im.v1.message.create, request)
 
             logger.info(f"收到飞书 API 响应: success={response.success()}")
 
@@ -193,3 +192,49 @@ class FeishuAPI:
         except Exception as e:
             logger.error(f"获取消息详情失败: {e}")
             return None
+
+    async def update_message(
+        self,
+        message_id: str,
+        card_json: str
+    ) -> bool:
+        """
+        更新消息内容（卡片消息）
+
+        Args:
+            message_id: 消息 ID
+            card_json: 新的卡片 JSON 内容
+
+        Returns:
+            更新成功返回 True
+        """
+        try:
+            import lark_oapi as lark
+
+            client = self._get_client()
+
+            # 更新消息时，需要使用 UpdateMessageRequest
+            # 注意：更新时可能需要使用 cardkit API 而不是普通消息API
+            # 暂时使用消息编辑API
+            request = lark.api.im.v1.UpdateMessageRequest.builder() \
+                .message_id(message_id) \
+                .request_body(
+                    lark.api.im.v1.UpdateMessageRequestBody.builder()
+                    .content(card_json)
+                    .build()
+                ).build()
+
+            response = await asyncio.get_event_loop().run_in_executor(
+                None, client.im.v1.message.update, request
+            )
+
+            if response.success():
+                logger.info(f"✅ 成功更新消息: {message_id}")
+                return True
+
+            logger.warning(f"更新消息失败: {response.code} - {response.msg}")
+            return False
+
+        except Exception as e:
+            logger.error(f"更新消息时出错: {e}", exc_info=True)
+            return False

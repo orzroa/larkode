@@ -177,6 +177,14 @@ async def send_feishu_notification(message: str, message_type: str = "stop", eve
     Returns:
         str: 发送成功返回消息ID，失败返回空字符串
     """
+    # 检测流式输出模式
+    streaming_card_id = os.environ.get("LARKODE_STREAMING_MODE")
+    if streaming_card_id and message_type == "stop":
+        # 流式输出模式，Hook 不发送，只清理环境变量
+        logger.info(f"检测到流式输出模式 (card_id={streaming_card_id})，跳过 Hook 发送")
+        del os.environ["LARKODE_STREAMING_MODE"]
+        return ""
+
     user_id = os.getenv("FEISHU_HOOK_NOTIFICATION_USER_ID")
     app_secret = os.getenv("FEISHU_APP_SECRET")
 
@@ -423,6 +431,11 @@ async def handle_event(handler: IHookHandler, context: HookContext, data: dict):
 
     # UserPromptSubmit: 发送用户提问通知
     if context.event_type == HookEventType.USER_PROMPT_SUBMIT:
+        # 检查是否启用了显示用户提问卡片
+        if not get_settings().SHOW_USER_PROMPT_CARD:
+            logger.debug("用户提问卡片已禁用，跳过发送")
+            return
+
         if context.user_prompt:
             success = await send_feishu_notification(
                 context.user_prompt, "prompt", context.event_type.value
