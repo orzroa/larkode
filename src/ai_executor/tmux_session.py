@@ -350,6 +350,21 @@ class TmuxSessionManager:
         # 匹配连续20个以上的 Unicode 横线字符 (─ U+2500)
         output = re.sub(r'─{20,}', lambda m: '─' * (len(m.group()) // 7), output)
 
+        # 转义以 # 开头的行（注释行，避免被当作 markdown 标题）
+        lines = output.split('\n')
+        processed_lines = []
+        for line in lines:
+            # 如果行以 # 开头（可能有前导空格），进行转义
+            stripped = line.lstrip()
+            if stripped.startswith('#'):
+                # 在第一个 # 前加 \ 进行转义
+                leading_spaces = line[:len(line) - len(stripped)]
+                escaped_line = leading_spaces + '\\' + line[len(leading_spaces):]
+                processed_lines.append(escaped_line)
+            else:
+                processed_lines.append(line)
+        output = '\n'.join(processed_lines)
+
         return output.strip()
 
     async def monitor_output(
