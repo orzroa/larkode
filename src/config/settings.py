@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     # ==================== Hook 通知配置 ====================
     feishu_hook_notification_user_id: str = Field(default="", description="Hook 通知用户 ID")
     show_user_prompt_card: bool = Field(default=False, description="是否显示用户提问卡片")
+    show_command_confirmation_card: bool = Field(default=False, description="是否显示命令确认卡片")
 
     # ==================== 权限模式 ====================
     permission_mode: str = Field(default="default", description="权限模式")
