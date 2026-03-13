@@ -62,8 +62,11 @@ class TestHandleEvent:
         """测试发送用户提问通知（Mock）"""
         prompt = "帮我分析项目结构"
 
-        with patch('src.hook_handler.send_feishu_notification', new_callable=AsyncMock) as mock_send:
+        with patch('src.hook_handler.send_feishu_notification', new_callable=AsyncMock) as mock_send, \
+             patch('src.hook_handler.get_settings') as mock_settings:
             mock_send.return_value = True
+            # 设置 SHOW_USER_PROMPT_CARD 为 True
+            mock_settings.return_value.SHOW_USER_PROMPT_CARD = True
 
             handler = MagicMock()
             context = HookContext(

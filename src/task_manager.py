@@ -110,7 +110,7 @@ class TaskManager:
         logger.info(f"开始执行命令: {command[:50]}...")
 
         # 直接调用 AI 助手执行，不再创建 Task
-        async for output in self.ai_assistant.execute_command(command):
+        async for output in self.ai_assistant.execute_command(command, user_id):
             yield output
 
     def cancel(self) -> bool:

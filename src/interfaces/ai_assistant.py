@@ -96,9 +96,20 @@ class IAIAssistantExecutor(ABC):
     async def execute_command(
         self,
         command: str,
-        workspace: Optional[Path] = None
+        workspace: Optional[Path] = None,
+        streaming: bool = False,
+        streaming_manager = None,
+        user_id: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
-        """执行命令并流式输出"""
+        """执行命令并流式输出
+
+        Args:
+            command: 命令内容
+            workspace: 工作目录
+            streaming: 是否启用流式输出
+            streaming_manager: 流式输出管理器
+            user_id: 用户 ID（流式输出需要）
+        """
         pass
 
     @abstractmethod
@@ -119,8 +130,14 @@ class IAIAssistantInterface(ABC):
     async def execute_command(
         self,
         command: str,
+        user_id: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
-        """执行命令并流式输出"""
+        """执行命令并流式输出
+
+        Args:
+            command: 命令内容
+            user_id: 用户 ID（用于流式输出）
+        """
         pass
 
     @abstractmethod

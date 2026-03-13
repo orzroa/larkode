@@ -72,6 +72,8 @@ class Settings(BaseSettings):
 
     # ==================== Hook 通知配置 ====================
     feishu_hook_notification_user_id: str = Field(default="", description="Hook 通知用户 ID")
+    show_user_prompt_card: bool = Field(default=False, description="是否显示用户提问卡片")
+    show_command_confirmation_card: bool = Field(default=False, description="是否显示命令确认卡片")
 
     # ==================== 权限模式 ====================
     permission_mode: str = Field(default="default", description="权限模式")
@@ -99,6 +101,13 @@ class Settings(BaseSettings):
     dingtalk_enabled: bool = Field(default=False, description="是否启用钉钉")
     dingtalk_app_key: str = Field(default="", description="钉钉 App Key")
     dingtalk_app_secret: str = Field(default="", description="钉钉 App Secret")
+
+    # ==================== 流式输出配置 ====================
+    streaming_output_enabled: bool = Field(default=True, description="是否启用流式输出")
+    streaming_poll_interval: float = Field(default=0.5, description="流式输出轮询间隔（秒）")
+    streaming_update_interval: float = Field(default=1.0, description="流式输出更新间隔（秒）- 节流控制")
+    streaming_timeout: int = Field(default=300, description="流式输出超时时间（秒）")
+    streaming_stable_threshold: int = Field(default=2, description="输出稳定阈值（连续多少次不变认为完成）")
 
     # ==================== 方法 ====================
 

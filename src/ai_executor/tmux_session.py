@@ -1,6 +1,7 @@
 """
 Tmux 会话管理
 """
+import asyncio
 import subprocess
 import time
 import os
@@ -337,4 +338,130 @@ class TmuxSessionManager:
         # 移除 tmux 特有的标记
         output = output.replace('\x1b[?2004l', '')
         output = output.replace('\x0f', '')
+
+        # 缩短长分割线：检测连续的减号、等号、下划线，缩短到原来的1/7
+        import re
+        # 匹配连续20个以上的减号
+        output = re.sub(r'-{20,}', lambda m: '-' * (len(m.group()) // 7), output)
+        # 匹配连续20个以上的等号
+        output = re.sub(r'={20,}', lambda m: '=' * (len(m.group()) // 7), output)
+        # 匹配连续20个以上的下划线
+        output = re.sub(r'_{20,}', lambda m: '_' * (len(m.group()) // 7), output)
+        # 匹配连续20个以上的 Unicode 横线字符 (─ U+2500)
+        output = re.sub(r'─{20,}', lambda m: '─' * (len(m.group()) // 7), output)
+
+        # 转义以 # 开头的行（注释行，避免被当作 markdown 标题）
+        lines = output.split('\n')
+        processed_lines = []
+        for line in lines:
+            # 如果行以 # 开头（可能有前导空格），进行转义
+            stripped = line.lstrip()
+            if stripped.startswith('#'):
+                # 在第一个 # 前加 \ 进行转义
+                leading_spaces = line[:len(line) - len(stripped)]
+                escaped_line = leading_spaces + '\\' + line[len(leading_spaces):]
+                processed_lines.append(escaped_line)
+            else:
+                processed_lines.append(line)
+        output = '\n'.join(processed_lines)
+
         return output.strip()
+
+    async def monitor_output(
+        self,
+        callback,
+        poll_interval: float = 0.5,
+        timeout: int = 300,
+        stable_threshold: int = 2
+    ) -> str:
+        """
+        监控 tmux 输出并实时回调
+
+        改进：始终保持最新20行，缩短长分割线
+
+        Args:
+            callback: 回调函数 (accumulated_content: str, is_last: bool) -> None
+            poll_interval: 轮询间隔（秒）
+            timeout: 超时时间（秒）
+            stable_threshold: 输出稳定阈值（连续多少次不变认为完成）
+
+        Returns:
+            最终完整输出
+        """
+        logger.info(f"开始监控 tmux 输出: poll_interval={poll_interval}, timeout={timeout}, stable_threshold={stable_threshold}")
+
+        start_time = time.time()
+        last_output = ""
+        stable_count = 0
+
+        try:
+            while True:
+                # 检查是否被取消
+                if asyncio.current_task().cancelled():
+                    logger.info(f"监控任务检测到取消请求，停止监控")
+                    break
+
+                # 检查超时
+                elapsed = time.time() - start_time
+                if elapsed > timeout:
+                    logger.warning(f"监控超时 ({timeout}s)，停止监控")
+                    break
+
+                # 捕获 tmux 输出：始终保持最新20行
+                try:
+                    result = subprocess.run(
+                        ["tmux", "capture-pane", "-t", self._tmux_session, "-S", "-20", "-p"],
+                        capture_output=True,
+                        text=True
+                    )
+
+                    if result.returncode != 0:
+                        logger.warning(f"捕获 tmux 输出失败: {result.stderr}")
+                        await asyncio.sleep(poll_interval)
+                        continue
+
+                    # 清理输出
+                    current_output = self._clean_tmux_output(result.stdout)
+
+                    # 检查输出是否稳定（连续不变）
+                    if current_output == last_output:
+                        stable_count += 1
+                        logger.debug(f"输出稳定计数: {stable_count}/{stable_threshold}")
+
+                        # 达到稳定阈值，认为完成
+                        if stable_count >= stable_threshold:
+                            logger.info(f"输出已稳定，停止监控")
+                            break
+                    else:
+                        # 输出有变化，重置稳定计数
+                        stable_count = 0
+                        last_output = current_output
+
+                        # 调用回调报告进度（非最后一次）
+                        if callback:
+                            try:
+                                callback(current_output, False)
+                            except Exception as cb_err:
+                                logger.error(f"回调函数执行失败: {cb_err}")
+
+                    # 等待下次轮询
+                    await asyncio.sleep(poll_interval)
+
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"捕获 tmux 输出时出错: {e}")
+                    await asyncio.sleep(poll_interval)
+                    continue
+
+            # 最后一次回调，标记完成
+            if callback and last_output:
+                try:
+                    callback(last_output, True)
+                except Exception as cb_err:
+                    logger.error(f"最终回调执行失败: {cb_err}")
+
+            logger.info(f"监控完成，总输出长度: {len(last_output)}")
+            return last_output
+
+        except Exception as e:
+            logger.error(f"监控 tmux 输出时出错: {e}", exc_info=True)
+            return last_output

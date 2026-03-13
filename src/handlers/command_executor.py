@@ -8,6 +8,7 @@ from typing import Optional, TYPE_CHECKING
 
 from src.models import Message, MessageType, MessageDirection, MessageSource
 from src.storage import db
+from src.config.settings import get_settings
 
 # 避免循环导入
 if TYPE_CHECKING:
@@ -134,23 +135,24 @@ class CommandExecutor:
             command: 命令内容
             seq_id: 消息序列号（可选）
         """
-        # 发送确认消息
-        if self.card_dispatcher:
-            from src.card_builder import UnifiedCardBuilder
-            content = UnifiedCardBuilder.build_command_card(command)
-            await self.card_dispatcher.send_card(
-                user_id=user_id,
-                card_type="command",
-                title="命令确认",
-                content=content,
-                message_type="response",
-                template_color="grey"
-            )
-        else:
-            # Fallback to card_builder
-            if self.card_builder:
-                card = self.card_builder.create_command_card(command)
-                await self._message_sender.send(user_id, card=card)
+        # 发送确认消息（根据配置）
+        if get_settings().SHOW_COMMAND_CONFIRMATION_CARD:
+            if self.card_dispatcher:
+                from src.card_builder import UnifiedCardBuilder
+                content = UnifiedCardBuilder.build_command_card(command)
+                await self.card_dispatcher.send_card(
+                    user_id=user_id,
+                    card_type="command",
+                    title="命令确认",
+                    content=content,
+                    message_type="response",
+                    template_color="grey"
+                )
+            else:
+                # Fallback to card_builder
+                if self.card_builder:
+                    card = self.card_builder.create_command_card(command)
+                    await self._message_sender.send(user_id, card=card)
 
         # 执行命令
         try:

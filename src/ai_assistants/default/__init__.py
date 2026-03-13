@@ -102,12 +102,14 @@ class DefaultAIInterface(IAIAssistantInterface):
     async def execute_command(
         self,
         command: str,
+        user_id: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
         执行命令并流式输出
 
         Args:
             command: 要执行的命令
+            user_id: 用户 ID（用于流式输出）
 
         Yields:
             str: 命令输出
@@ -116,9 +118,21 @@ class DefaultAIInterface(IAIAssistantInterface):
 
         self._is_running = True
         try:
+            # 创建流式输出管理器
+            streaming_manager = None
+            if user_id and get_settings().STREAMING_OUTPUT_ENABLED:
+                from src.streaming_output import create_streaming_manager
+                streaming_manager = create_streaming_manager()
+                if streaming_manager:
+                    logger.info("流式输出管理器已创建")
+
+            # 执行命令（带流式输出）
             async for output in self.executor.execute_command(
                 command,
-                self.config.workspace
+                self.config.workspace,
+                streaming=bool(streaming_manager),
+                streaming_manager=streaming_manager,
+                user_id=user_id
             ):
                 yield output
 

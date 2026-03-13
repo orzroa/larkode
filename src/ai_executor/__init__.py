@@ -114,7 +114,10 @@ class TmuxAIExecutor:
     async def execute_command(
         self,
         command: str,
-        workspace: Optional[Path] = None
+        workspace: Optional[Path] = None,
+        streaming: bool = False,
+        streaming_manager = None,
+        user_id: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
         执行命令（通过 tmux）
@@ -122,6 +125,9 @@ class TmuxAIExecutor:
         Args:
             command: 要执行的命令
             workspace: 工作目录
+            streaming: 是否启用流式输出
+            streaming_manager: 流式输出管理器 (StreamingOutputManager)
+            user_id: 用户 ID（流式输出需要）
 
         Yields:
             str: 命令输出
@@ -134,35 +140,112 @@ class TmuxAIExecutor:
 
         logger.info(f"开始 tmux 执行命令: {command}")
 
-        output_lines = []
-        try:
-            # 检查是否需要重启 AI（执行前），并获取是否刚刚启动了 AI
-            just_started = False
-            if self._auto_restart_enabled:
-                success, just_started = self._session_manager._ensure_tmux_session()
-                if not success:
-                    yield "错误: 无法创建 tmux session"
-                    return
-                if just_started:
-                    yield "⚠️ 检测到 AI 进程未运行，已自动启动"
-                    yield ""
-                    # 等待 AI 完全初始化
-                    logger.info("  → 等待 AI 初始化...")
-                    time.sleep(5)
+        # 流式输出模式
+        if streaming and streaming_manager and user_id:
+            logger.info("启用流式输出模式")
 
-            async for output in self._session_manager.send_command(command, skip_ensure=True):
-                output_lines.append(output)
-                yield output
+            try:
+                # 确保 session 存在
+                just_started = False
+                if self._auto_restart_enabled:
+                    success, just_started = self._session_manager._ensure_tmux_session()
+                    if not success:
+                        yield "错误: 无法创建 tmux session"
+                        return
+                    if just_started:
+                        yield "⚠️ 检测到 AI 进程未运行，已自动启动"
+                        yield ""
+                        logger.info("  → 等待 AI 初始化...")
+                        time.sleep(5)
 
-            # 生成格式化摘要
-            formatted_result = '\n'.join(output_lines)
-            max_length = int(os.getenv("CARD_MAX_LENGTH", str(get_settings().CARD_MAX_LENGTH)))
-            if len(formatted_result) > max_length:
-                formatted_result = formatted_result[:max_length] + "\n... (内容过长，已截断)"
+                # 创建卡片实体
+                card_id = await streaming_manager.start_streaming(
+                    user_id,
+                    "正在处理...",
+                    title="命令处理",
+                    template_color="blue"
+                )
 
-        except Exception as e:
-            logger.error(f"tmux 执行命令时出错: {e}", exc_info=True)
-            yield f"\n执行出错: {str(e)}"
+                if card_id:
+                    # 发送命令
+                    async for output in self._session_manager.send_command(command, skip_ensure=True):
+                        # 不 yield 输出，因为会通过卡片实时显示
+                        pass
+
+                    # 创建监控任务
+                    async def run_monitor():
+                        try:
+                            final_output = await self._session_manager.monitor_output(
+                                callback=lambda content, is_last: asyncio.create_task(
+                                    streaming_manager.finish_streaming(card_id, content)
+                                ) if is_last else asyncio.create_task(
+                                    streaming_manager.update_content(card_id, content)
+                                )
+                            )
+                            return final_output
+                        except asyncio.CancelledError:
+                            logger.info(f"监控任务被取消: {card_id}")
+                            raise
+
+                    # 启动监控任务
+                    monitor_task = asyncio.create_task(run_monitor())
+
+                    # 注册监控任务（用于后续取消）
+                    streaming_manager.register_monitor_task(monitor_task)
+
+                    # 等待监控任务完成
+                    try:
+                        final_output = await monitor_task
+                    except asyncio.CancelledError:
+                        logger.info(f"监控任务已取消，跳过后续处理")
+                        return
+
+                    # 设置环境变量，通知 Hook 跳过发送
+                    os.environ["LARKODE_STREAMING_MODE"] = card_id
+
+                    yield f"命令已发送到 AI，正在实时显示结果"
+
+                else:
+                    # 卡片创建失败，降级到传统模式
+                    logger.warning("卡片创建失败，降级到传统模式")
+                    async for output in self._session_manager.send_command(command, skip_ensure=True):
+                        yield output
+
+            except Exception as e:
+                logger.error(f"流式输出执行时出错: {e}", exc_info=True)
+                yield f"\n执行出错: {str(e)}"
+
+        # 传统模式
+        else:
+            output_lines = []
+            try:
+                # 检查是否需要重启 AI（执行前），并获取是否刚刚启动了 AI
+                just_started = False
+                if self._auto_restart_enabled:
+                    success, just_started = self._session_manager._ensure_tmux_session()
+                    if not success:
+                        yield "错误: 无法创建 tmux session"
+                        return
+                    if just_started:
+                        yield "⚠️ 检测到 AI 进程未运行，已自动启动"
+                        yield ""
+                        # 等待 AI 完全初始化
+                        logger.info("  → 等待 AI 初始化...")
+                        time.sleep(5)
+
+                async for output in self._session_manager.send_command(command, skip_ensure=True):
+                    output_lines.append(output)
+                    yield output
+
+                # 生成格式化摘要
+                formatted_result = '\n'.join(output_lines)
+                max_length = int(os.getenv("CARD_MAX_LENGTH", str(get_settings().CARD_MAX_LENGTH)))
+                if len(formatted_result) > max_length:
+                    formatted_result = formatted_result[:max_length] + "\n... (内容过长，已截断)"
+
+            except Exception as e:
+                logger.error(f"tmux 执行命令时出错: {e}", exc_info=True)
+                yield f"\n执行出错: {str(e)}"
 
     def cancel_task(self, task_id: str) -> bool:
         """取消当前执行"""
