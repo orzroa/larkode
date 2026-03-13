@@ -4,7 +4,8 @@
 负责命令的处理和执行
 """
 import json
-from typing import Optional, TYPE_CHECKING
+import os
+from typing import Optional, TYPE_CHECKING, Any
 
 from src.models import Message, MessageType, MessageDirection, MessageSource
 from src.storage import db
@@ -134,31 +135,81 @@ class CommandExecutor:
             command: 命令内容
             seq_id: 消息序列号（可选）
         """
+        # 检查是否启用流式输出
+        from src.config.settings import get_settings
+        settings = get_settings()
+        streaming_enabled = os.getenv("STREAMING_ENABLED", str(settings.STREAMING_ENABLED)).lower() == "true"
+
+        # 流式输出管理器
+        streaming_manager = None
+
+        # 如果已有活跃的流式卡片，先停止它并添加说明
+        global _current_streaming_manager
+        if _current_streaming_manager is not None:
+            try:
+                await _current_streaming_manager.stop_with_message("**已停止更新，请查看最新响应卡片**")
+            except Exception:
+                pass
+            _current_streaming_manager = None
+
         # 发送确认消息
         if self.card_dispatcher:
-            from src.card_builder import UnifiedCardBuilder
-            content = UnifiedCardBuilder.build_command_card(command)
-            await self.card_dispatcher.send_card(
-                user_id=user_id,
-                card_type="command",
-                title="命令确认",
-                content=content,
-                message_type="response",
-                template_color="grey"
-            )
+            if streaming_enabled:
+                # 使用流式输出
+                from src.streaming_output import StreamingOutputManager
+                from src.feishu import FeishuAPI
+
+                feishu = FeishuAPI(settings.FEISHU_APP_ID, settings.FEISHU_APP_SECRET)
+                streaming_manager = StreamingOutputManager(
+                    user_id=user_id,
+                    feishu_api=feishu,
+                    card_dispatcher=self.card_dispatcher
+                )
+                # 保存到全局变量，确保只有一个活跃的流式卡片
+                _current_streaming_manager = streaming_manager
+                # 创建初始卡片
+                await streaming_manager.start(title="AI 响应中...", template_color="blue")
+            else:
+                # 普通模式
+                from src.card_builder import UnifiedCardBuilder
+                content = UnifiedCardBuilder.build_command_card(command)
+                await self.card_dispatcher.send_card(
+                    user_id=user_id,
+                    card_type="command",
+                    title="命令确认",
+                    content=content,
+                    message_type="response",
+                    template_color="grey"
+                )
         else:
             # Fallback to card_builder
             if self.card_builder:
                 card = self.card_builder.create_command_card(command)
                 await self._message_sender.send(user_id, card=card)
 
+        # 定义流式回调
+        async def streaming_callback(content: str, is_last: bool):
+            if streaming_manager:
+                await streaming_manager.on_chunk(content, is_last)
+
         # 执行命令
         try:
-            async for _ in self.tm.execute_command(user_id, command):
-                pass  # 输出由 AI 助手处理
+            # 如果有流式管理器，传递回调
+            if streaming_manager:
+                async for _ in self.tm.execute_command_streaming(user_id, command, streaming_callback):
+                    pass
+            else:
+                async for _ in self.tm.execute_command(user_id, command):
+                    pass  # 输出由 AI 助手处理
         except Exception as e:
             logger.error(f"执行命令失败：{e}", exc_info=True)
             await self.send_error(user_id, f"执行失败：{str(e)}")
+        finally:
+            # 关闭流式管理器
+            if streaming_manager:
+                await streaming_manager.close()
+                if _current_streaming_manager is streaming_manager:
+                    _current_streaming_manager = None
 
     async def send_error(self, user_id: str, error: str):
         """
@@ -174,3 +225,6 @@ class CommandExecutor:
 
 # 全局命令执行器实例（需要外部初始化）
 command_executor: Optional[CommandExecutor] = None
+
+# 全局流式输出管理器（确保只有一个活跃的流式卡片）
+_current_streaming_manager: Optional[Any] = None

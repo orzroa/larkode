@@ -21,6 +21,9 @@ from src.feishu.file_ops import (
 # 导出 WebSocket 客户端
 from src.feishu.websocket import FeishuWebSocketClient
 
+# 导出 CardKit 客户端
+from src.feishu.card_kit import CardKitClient, StreamingCallback
+
 # 导出 API 类（含文件操作）
 from src.feishu.api import FeishuAPI as _FeishuAPIBase
 

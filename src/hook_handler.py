@@ -36,7 +36,7 @@ from src.config.settings import Config, get_settings
 # from src.card_manager import create_notification_card  # 将废弃
 from src.card_dispatcher import CardDispatcher
 from src.exceptions import HookError, HookExecutionError, handle_exception
-from src.feishu import FeishuAPI, FeishuAPIError
+from src.feishu import FeishuAPI, FeishuAPIError, CardKitClient
 from src.interfaces.hook_handler import (
     IHookHandler,
     HookEventType,
@@ -185,37 +185,12 @@ async def send_feishu_notification(message: str, message_type: str = "stop", eve
         return ""
 
     try:
+        # 检查是否启用流式输出
+        settings = get_settings()
+        streaming_enabled = os.getenv("STREAMING_ENABLED", str(settings.STREAMING_ENABLED)).lower() == "true"
+
         # 使用 FeishuAPI 发送通知（统一入口）
-        feishu = FeishuAPI(get_settings().FEISHU_APP_ID, app_secret)
-
-        # 创建 CardDispatcher 实例（临时，每次调用创建）
-        card_dispatcher = CardDispatcher(feishu_api=feishu)
-
-        # 创建一个 notification sender wrapper 来适配旧接口
-        # 这样可以确保 CardDispatcher 能返回 message_id
-        class NotificationSenderWrapper:
-            def __init__(self, feishu_api):
-                self.feishu_api = feishu_api
-                self.last_message_id = ""
-
-            async def send_card(self, user_id, card):
-                # 转换为飞书卡片格式
-                from src.im_platforms.feishu import FeishuPlatform
-                from src.interfaces.im_platform import PlatformConfig
-
-                platform = FeishuPlatform(PlatformConfig(
-                    app_id=get_settings().FEISHU_APP_ID,
-                    app_secret=app_secret,
-                    receive_id_type="open_id"
-                ))
-                card_json_str = platform._convert_normalized_card_to_feishu(card)
-
-                result = await self.feishu_api.send_interactive_message(user_id, card_json_str, "")
-                self.last_message_id = result if result else ""
-                return bool(result)
-
-        notification_sender = NotificationSenderWrapper(feishu)
-        card_dispatcher.set_notification_sender(notification_sender)
+        feishu = FeishuAPI(settings.FEISHU_APP_ID, app_secret)
 
         # 根据 message_type 设置卡片标题和颜色
         card_titles = {
@@ -232,21 +207,17 @@ async def send_feishu_notification(message: str, message_type: str = "stop", eve
         title = card_titles.get(message_type, "通知")
         template_color = card_colors.get(message_type, "grey")
 
-        # 发送卡片（CardDispatcher 内部会处理文件上传和数据库存储）
-        feishu_msg_id, file_key = await card_dispatcher.send_card(
-            user_id=user_id,
-            card_type=message_type,
-            title=title,
-            content=message,
-            message_type="status",
-            template_color=template_color
+        # 流式输出逻辑
+        if streaming_enabled and message_type == "stop":
+            # 对于 stop 类型，尝试使用流式输出
+            return await _send_streaming_notification(
+                feishu, user_id, message, message_type, title, template_color
+            )
+
+        # 非流式场景，使用原有逻辑
+        return await _send_normal_notification(
+            feishu, user_id, message, message_type, title, template_color, app_secret
         )
-
-        logger.info(f"成功发送飞书通知给用户 {user_id}, message_id={feishu_msg_id}")
-
-        # 注意：CardDispatcher 已经自动记录到数据库，无需重复调用 record_hook_message
-
-        return feishu_msg_id if feishu_msg_id else ""
 
     except FeishuAPIError as api_err:
         logger.error(f"发送飞书通知失败: {api_err}")
@@ -254,6 +225,190 @@ async def send_feishu_notification(message: str, message_type: str = "stop", eve
     except Exception as e:
         logger.error(f"发送飞书通知时出错: {e}")
         return ""
+
+
+async def _send_streaming_notification(
+    feishu: FeishuAPI,
+    user_id: str,
+    message: str,
+    message_type: str,
+    title: str,
+    template_color: str,
+) -> str:
+    """
+    使用流式输出发送通知
+
+    Args:
+        feishu: FeishuAPI 实例
+        user_id: 用户 ID
+        message: 消息内容
+        message_type: 消息类型
+        title: 卡片标题
+        template_color: 卡片颜色
+
+    Returns:
+        str: 消息 ID
+    """
+    try:
+        # 构建初始卡片 JSON
+        card_json = _build_cardkit_card_json(title, message, template_color)
+
+        # 尝试创建 CardKit 卡片
+        card_kit_client = CardKitClient(
+            feishu_api=feishu,
+            default_throttle=get_settings().STREAMING_THROTTLE_INTERVAL
+        )
+
+        result = await card_kit_client.create_card_entity(
+            card_json=card_json,
+            user_id=user_id,
+            title=title,
+            template_color=template_color
+        )
+
+        if result:
+            card_id, message_id = result
+            logger.info(f"流式卡片创建成功: card_id={card_id}, message_id={message_id}")
+
+            # 尝试更新为最终内容（触发一次更新）
+            callback = await card_kit_client.create_streaming_callback(
+                card_id=card_id,
+                card_json_template=card_json,
+            )
+            await callback.on_chunk(message, is_last=True)
+            await card_kit_client.remove_callback(card_id)
+
+            return message_id
+        else:
+            # CardKit 失败，降级到普通卡片
+            logger.warning("CardKit 创建失败，降级到普通卡片")
+            return await _send_normal_notification(
+                feishu, user_id, message, message_type, title, template_color,
+                feishu.app_secret
+            )
+
+    except Exception as e:
+        logger.error(f"流式输出失败: {e}，降级到普通模式")
+        return await _send_normal_notification(
+            feishu, user_id, message, message_type, title, template_color,
+            feishu.app_secret
+        )
+
+
+async def _send_normal_notification(
+    feishu: FeishuAPI,
+    user_id: str,
+    message: str,
+    message_type: str,
+    title: str,
+    template_color: str,
+    app_secret: str,
+) -> str:
+    """
+    使用普通模式发送通知
+
+    Args:
+        feishu: FeishuAPI 实例
+        user_id: 用户 ID
+        message: 消息内容
+        message_type: 消息类型
+        title: 卡片标题
+        template_color: 卡片颜色
+        app_secret: 应用密钥
+
+    Returns:
+        str: 消息 ID
+    """
+    # 创建 CardDispatcher 实例（临时，每次调用创建）
+    card_dispatcher = CardDispatcher(feishu_api=feishu)
+
+    # 创建一个 notification sender wrapper 来适配旧接口
+    # 这样可以确保 CardDispatcher 能返回 message_id
+    class NotificationSenderWrapper:
+        def __init__(self, feishu_api):
+            self.feishu_api = feishu_api
+            self.last_message_id = ""
+
+        async def send_card(self, user_id, card):
+            # 转换为飞书卡片格式
+            from src.im_platforms.feishu import FeishuPlatform
+            from src.interfaces.im_platform import PlatformConfig
+
+            platform = FeishuPlatform(PlatformConfig(
+                app_id=get_settings().FEISHU_APP_ID,
+                app_secret=app_secret,
+                receive_id_type="open_id"
+            ))
+            card_json_str = platform._convert_normalized_card_to_feishu(card)
+
+            result = await self.feishu_api.send_interactive_message(user_id, card_json_str, "")
+            self.last_message_id = result if result else ""
+            return bool(result)
+
+    notification_sender = NotificationSenderWrapper(feishu)
+    card_dispatcher.set_notification_sender(notification_sender)
+
+    # 发送卡片（CardDispatcher 内部会处理文件上传和数据库存储）
+    feishu_msg_id, file_key = await card_dispatcher.send_card(
+        user_id=user_id,
+        card_type=message_type,
+        title=title,
+        content=message,
+        message_type="status",
+        template_color=template_color
+    )
+
+    logger.info(f"成功发送飞书通知给用户 {user_id}, message_id={feishu_msg_id}")
+
+    # 注意：CardDispatcher 已经自动记录到数据库，无需重复调用 record_hook_message
+
+    return feishu_msg_id if feishu_msg_id else ""
+
+
+def _build_cardkit_card_json(title: str, content: str, template_color: str = "blue") -> str:
+    """
+    构建 CardKit 卡片 JSON
+
+    Args:
+        title: 卡片标题
+        content: 卡片内容
+        template_color: 卡片颜色
+
+    Returns:
+        str: 卡片 JSON 字符串
+    """
+    import json
+
+    # 颜色映射
+    color_map = {
+        "green": "#00A86B",
+        "blue": "#1989FA",
+        "orange": "#FF7D00",
+        "grey": "#909399",
+        "red": "#F56C6C"
+    }
+    color = color_map.get(template_color, "#1989FA")
+
+    card = {
+        "config": {
+            "wide_screen_mode": True
+        },
+        "header": {
+            "title": {
+                "tag": "plain_text",
+                "content": title
+            },
+            "template": template_color
+        },
+        "elements": [
+            {
+                "tag": "markdown",
+                "content": content
+            }
+        ]
+    }
+
+    return json.dumps(card, ensure_ascii=False)
 
 
 # 保留旧的文件上传函数作为兼容（虽然现在由 CardDispatcher 内部处理）
@@ -421,9 +576,9 @@ async def handle_event(handler: IHookHandler, context: HookContext, data: dict):
         None
     """
 
-    # UserPromptSubmit: 发送用户提问通知
+    # UserPromptSubmit: 发送用户提问通知（根据设置决定是否发送）
     if context.event_type == HookEventType.USER_PROMPT_SUBMIT:
-        if context.user_prompt:
+        if context.user_prompt and get_settings().SHOW_USER_QUESTION_CARD:
             success = await send_feishu_notification(
                 context.user_prompt, "prompt", context.event_type.value
             )

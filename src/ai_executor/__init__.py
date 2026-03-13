@@ -114,7 +114,8 @@ class TmuxAIExecutor:
     async def execute_command(
         self,
         command: str,
-        workspace: Optional[Path] = None
+        workspace: Optional[Path] = None,
+        streaming_callback=None,
     ) -> AsyncGenerator[str, None]:
         """
         执行命令（通过 tmux）
@@ -122,6 +123,7 @@ class TmuxAIExecutor:
         Args:
             command: 要执行的命令
             workspace: 工作目录
+            streaming_callback: 流式回调函数，签名: callback(content: str, is_last: bool) -> None
 
         Yields:
             str: 命令输出
@@ -150,9 +152,22 @@ class TmuxAIExecutor:
                     logger.info("  → 等待 AI 初始化...")
                     time.sleep(5)
 
+            # 发送命令到 tmux
             async for output in self._session_manager.send_command(command, skip_ensure=True):
                 output_lines.append(output)
                 yield output
+
+            # 如果有流式回调，启动异步输出捕获并等待完成
+            if streaming_callback:
+                logger.info("启动异步流式输出捕获并等待完成")
+                import asyncio
+
+                # 立即开始捕获，不需要等待 AI 输出
+                await self._session_manager.capture_output_async(
+                    streaming_callback,
+                    0.3,  # poll_interval
+                    300.0,  # max_wait
+                )
 
             # 生成格式化摘要
             formatted_result = '\n'.join(output_lines)

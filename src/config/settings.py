@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     card_max_length: int = Field(default=1500, description="卡片消息最大长度")
     use_safe_card_formatting: bool = Field(default=True, description="是否使用安全格式化")
 
+    # ==================== 流式输出配置 ====================
+    streaming_enabled: bool = Field(default=True, description="是否启用流式输出")
+    streaming_throttle_interval: float = Field(default=1.0, description="流式输出节流间隔（秒）")
+    streaming_no_output_timeout: float = Field(default=3.0, description="流式输出无输出超时（秒）")
+
+    # ==================== 用户提问卡片配置 ====================
+    show_user_question_card: bool = Field(default=False, description="是否显示用户提问卡片")
+
     # ==================== 任务配置 ====================
     task_timeout: int = Field(default=300, description="任务超时时间（秒）")
     max_task_history: int = Field(default=100, description="最大任务历史记录数")

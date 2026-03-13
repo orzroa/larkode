@@ -306,6 +306,19 @@ class TmuxSessionManager:
 
             logger.info(f"发送命令到 tmux session '{self._tmux_session}': {command}")
 
+            # 清空 tmux 历史和屏幕，确保只捕获新命令的输出
+            # 1. 清空历史缓冲区
+            subprocess.run(
+                ["tmux", "clear-history", "-t", f"{self._tmux_session}"],
+                capture_output=True
+            )
+            # 2. 发送 C-l 清除屏幕（终端控制字符，不是输入到程序）
+            subprocess.run(
+                ["tmux", "send-keys", "-t", f"{self._tmux_session}", "C-l"],
+                capture_output=True
+            )
+            time.sleep(0.5)  # 等待屏幕清空完成
+
             # 发送命令到 tmux session
             # 先 C-u 清除当前输入行，然后发送命令
             clear_cmd = ["tmux", "send-keys", "-t", f"{self._tmux_session}", "C-u"]
@@ -337,4 +350,197 @@ class TmuxSessionManager:
         # 移除 tmux 特有的标记
         output = output.replace('\x1b[?2004l', '')
         output = output.replace('\x0f', '')
+
+        # 缩短长分隔线（─────────────────────────────────────────────── 缩短到 1/7）
+        import re
+        # 匹配连续 20 个以上横线或破折号的行
+        output = re.sub(r'^([─\-=━]{20,})$', lambda m: m.group(1)[:len(m.group(1))//7] if len(m.group(1)) > 7 else m.group(1), output, flags=re.MULTILINE)
+
+        # # 前面添加空格（飞书特殊字符转义）
+        output = re.sub(r'(?<!\s)#', ' #', output)
+
         return output.strip()
+
+    def capture_output(
+        self,
+        callback,
+        poll_interval: float = 0.3,
+        max_wait: float = 300.0,
+    ) -> str:
+        """
+        捕获 tmux 输出并通过回调发送增量更新
+
+        Args:
+            callback: 回调函数，签名: callback(content: str, is_last: bool) -> None
+            poll_interval: 轮询间隔（秒）
+            max_wait: 最大等待时间（秒）
+
+        Returns:
+            str: 完整输出内容
+        """
+        import time
+        import asyncio
+
+        output_lines = []
+        last_position = 0
+        start_time = time.time()
+
+        logger.info(f"开始捕获 tmux 输出，poll_interval={poll_interval}s, max_wait={max_wait}s")
+
+        # 检查回调是否是异步的
+        if asyncio.iscoroutinefunction(callback):
+            # 如果是异步回调，使用异步版本
+            return asyncio.get_event_loop().run_until_complete(
+                self.capture_output_async(callback, poll_interval, max_wait)
+            )
+
+        while True:
+            elapsed = time.time() - start_time
+
+            # 检查是否超时
+            if elapsed > max_wait:
+                logger.info(f"捕获超时 ({max_wait}s)，返回已收集的内容")
+                break
+
+            # 捕获当前 pane 内容
+            try:
+                # 使用 -S 0 捕获当前可见内容（不包括历史）
+                result = subprocess.run(
+                    ["tmux", "capture-pane", "-pS", "0", "-t", f"{self._tmux_session}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+
+                if result.returncode == 0 and result.stdout:
+                    current_output = self._clean_tmux_output(result.stdout)
+
+                    # 检查是否有新内容
+                    if len(current_output) > last_position:
+                        new_content = current_output[last_position:]
+                        last_position = len(current_output)
+
+                        # 过滤掉命令本身（如果还在输出中）
+                        if new_content.strip():
+                            output_lines.append(new_content)
+                            # 传递新增内容而不是累积内容
+                            callback(new_content, is_last=False)
+
+                # 检查 AI 是否仍在运行（如果进程不在了，说明输出完成）
+                if not self._check_ai_running_in_session():
+                    logger.info("检测到 AI 进程已结束，停止捕获")
+                    break
+
+            except subprocess.TimeoutExpired:
+                logger.warning("捕获 pane 超时")
+            except Exception as e:
+                logger.error(f"捕获输出失败: {e}")
+
+            time.sleep(poll_interval)
+
+        # 发送最终内容（仅当有内容时）
+        full_content = '\n'.join(output_lines)
+        if full_content.strip():
+            callback(full_content, is_last=True)
+
+        return full_content
+
+    async def capture_output_async(
+        self,
+        callback,
+        poll_interval: float = 0.3,
+        max_wait: float = 300.0,
+        command: str = "",
+    ) -> str:
+        """
+        异步捕获 tmux 输出并通过回调发送增量更新
+
+        Args:
+            callback: 异步回调函数，签名: async callback(content: str, is_last: bool) -> None
+            poll_interval: 轮询间隔（秒）
+            max_wait: 最大等待时间（秒）
+            command: 发送的命令（用于检测命令是否完成）
+
+        Returns:
+            str: 完整输出内容
+        """
+        import time
+        import asyncio
+
+        output_lines = []
+        last_position = 0
+        start_time = time.time()
+        last_output_time = time.time()  # 上次有新输出的时间
+
+        logger.info(f"开始异步捕获 tmux 输出，poll_interval={poll_interval}s, max_wait={max_wait}s")
+
+        # 注意：tmux 历史和屏幕已在 send_command 中清空，这里不需要再清空
+
+        while True:
+            elapsed = time.time() - start_time
+            time_since_last_output = time.time() - last_output_time
+
+            # 检查是否超时
+            if elapsed > max_wait:
+                logger.info(f"捕获超时 ({max_wait}s)，返回已收集的内容")
+                break
+
+            # 检查无新输出超时 - 如果一段时间没有新输出，认为 AI 已完成
+
+            # 捕获当前 pane 内容
+            had_new_output = False
+            current_output = ""
+
+            try:
+                # 抓全量：每次都发送当前屏幕的全部内容
+                result = await asyncio.create_subprocess_exec(
+                    "tmux", "capture-pane", "-pS", "0", "-t", f"{self._tmux_session}",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await result.communicate()
+
+                if result.returncode == 0 and stdout:
+                    current_output = self._clean_tmux_output(stdout.decode('utf-8'))
+                    current_len = len(current_output)
+
+                    if current_output.strip():
+                        had_new_output = True
+                        last_output_time = time.time()
+                        # 发送全量内容
+                        await callback(current_output, is_last=False)
+                        logger.info(f"捕获长度={current_len}")
+
+            except asyncio.TimeoutExpired:
+                logger.warning("捕获 pane 超时")
+            except Exception as e:
+                logger.error(f"捕获输出失败: {e}")
+
+            # 检查内容是否变化：如果连续 2 次捕获内容相同，认为 AI 已完成
+            # 只有当有实际内容时才检查
+            if had_new_output and current_output:
+                # 标准化内容进行比较（去除首尾空格和多余空白）
+                normalized_output = ' '.join(current_output.split())
+
+                if not hasattr(self, '_last_captured_output'):
+                    self._last_captured_output = normalized_output
+                    self._no_change_count = 0
+                elif normalized_output == self._last_captured_output:
+                    self._no_change_count += 1
+                else:
+                    self._no_change_count = 0
+                    self._last_captured_output = normalized_output
+
+                # 连续 2 次内容没变化，认为 AI 已完成
+                if self._no_change_count >= 2:
+                    logger.info(f"连续{self._no_change_count}次内容无变化，AI 已完成，停止捕获")
+                    break
+
+            await asyncio.sleep(poll_interval)
+
+        # 发送最终内容（仅当有内容时）
+        full_content = '\n'.join(output_lines)
+        if full_content.strip():
+            await callback(full_content, is_last=True)
+
+        return full_content

@@ -128,6 +128,38 @@ class DefaultAIInterface(IAIAssistantInterface):
         finally:
             self._is_running = False
 
+    async def execute_command_streaming(
+        self,
+        command: str,
+        streaming_callback=None,
+    ) -> AsyncGenerator[str, None]:
+        """
+        执行命令并流式输出（带回调）
+
+        Args:
+            command: 要执行的命令
+            streaming_callback: 流式回调函数
+
+        Yields:
+            str: 命令输出
+        """
+        logger.info(f"开始执行命令(流式): {command}")
+
+        self._is_running = True
+        try:
+            async for output in self.executor.execute_command(
+                command,
+                self.config.workspace,
+                streaming_callback=streaming_callback
+            ):
+                yield output
+
+        except Exception as e:
+            logger.error(f"执行命令时出错: {e}", exc_info=True)
+            yield f"\n执行出错: {str(e)}"
+        finally:
+            self._is_running = False
+
     def cancel(self) -> bool:
         """取消当前执行"""
         try:

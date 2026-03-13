@@ -3,6 +3,12 @@ pytest 配置 - 设置全局测试模式
 """
 import pytest
 import os
+from pathlib import Path
+
+# 加载项目 .env 文件
+from dotenv import load_dotenv
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(env_path)
 
 
 def pytest_configure(config):

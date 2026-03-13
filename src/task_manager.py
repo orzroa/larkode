@@ -113,6 +113,29 @@ class TaskManager:
         async for output in self.ai_assistant.execute_command(command):
             yield output
 
+    async def execute_command_streaming(
+        self,
+        user_id: str,
+        command: str,
+        streaming_callback=None,
+    ) -> AsyncGenerator[str, None]:
+        """
+        执行命令，流式返回输出（带回调）
+
+        Args:
+            user_id: 用户 ID（用于日志追踪）
+            command: 命令内容
+            streaming_callback: 流式回调函数
+
+        Yields:
+            执行输出
+        """
+        logger.info(f"开始执行命令(流式): {command[:50]}...")
+
+        # 直接调用 AI 助手执行
+        async for output in self.ai_assistant.execute_command_streaming(command, streaming_callback):
+            yield output
+
     def cancel(self) -> bool:
         """
         取消当前执行
