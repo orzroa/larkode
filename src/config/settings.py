@@ -106,7 +106,7 @@ class Settings(BaseSettings):
     streaming_output_enabled: bool = Field(default=True, description="是否启用流式输出")
     streaming_poll_interval: float = Field(default=0.5, description="流式输出轮询间隔（秒）")
     streaming_update_interval: float = Field(default=1.0, description="流式输出更新间隔（秒）- 节流控制")
-    streaming_timeout: int = Field(default=300, description="流式输出超时时间（秒）")
+    streaming_timeout: int = Field(default=3600, description="流式输出超时时间（秒），可通过 STREAMING_TIMEOUT 环境变量配置")
     streaming_stable_threshold: int = Field(default=2, description="输出稳定阈值（连续多少次不变认为完成）")
 
     # ==================== 方法 ====================

@@ -95,7 +95,7 @@ class TestStreamingOutputJingYeSi:
         """测试 sequence 管理"""
 
         # 模拟 update_card_content 递增 sequence
-        async def mock_update(card_id, content, cancelled_cards=None):
+        async def mock_update(card_id, content, cancelled_cards=None, title=None):
             mock_cardkit._card_sequence[card_id] = mock_cardkit._card_sequence.get(card_id, 0) + 1
             return True
 

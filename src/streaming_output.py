@@ -142,7 +142,9 @@ class StreamingOutputManager:
                     self._update_states[card_id] = {
                         "last_update_time": 0.0,
                         "last_content": initial_message,
-                        "user_id": user_id
+                        "user_id": user_id,
+                        "start_time": time.time(),  # 记录开始时间
+                        "title": title,  # 保存标题
                     }
 
                     # 设置为当前活跃卡片
@@ -190,10 +192,15 @@ class StreamingOutputManager:
 
             # 节流逻辑：距离上次更新时间足够
             if (now - state["last_update_time"]) >= self._update_interval:
+                # 计算已用时间
+                elapsed = now - state.get("start_time", now)
+                title = f"命令处理({int(elapsed)})"
+
                 success = await self.cardkit.update_card_content(
                     card_id,
                     content,
-                    cancelled_cards=self._cancelled_cards
+                    cancelled_cards=self._cancelled_cards,
+                    title=title  # 传入动态标题
                 )
                 if success:
                     state["last_update_time"] = now
@@ -230,11 +237,17 @@ class StreamingOutputManager:
             return False
 
         try:
+            # 计算总耗时
+            state = self._update_states.get(card_id, {})
+            elapsed = time.time() - state.get("start_time", time.time())
+            title = f"命令处理(完成，耗时{int(elapsed)}秒)"
+
             # 强制更新最终内容（不节流）
             success = await self.cardkit.update_card_content(
                 card_id,
                 final_content,
-                cancelled_cards=self._cancelled_cards
+                cancelled_cards=self._cancelled_cards,
+                title=title  # 传入完成标题
             )
 
             # 清理状态

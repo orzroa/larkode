@@ -47,7 +47,7 @@ class APIServiceManager:
         env["TEST_MODE_ENABLED"] = "true"  # 启用测试模式（自动启动 API 服务器 + 标记消息）
 
         self.process = subprocess.Popen(
-            [sys.executable, str(PROJECT_ROOT / "ai_term_lark.py")],
+            [sys.executable, str(PROJECT_ROOT / "larkode.py")],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,

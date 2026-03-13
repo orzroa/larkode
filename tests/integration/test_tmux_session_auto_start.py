@@ -10,6 +10,7 @@
 """
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -20,6 +21,12 @@ import pytest
 # 测试配置
 TEST_SESSION_NAME = "ccut"
 TEST_COMMAND = "1+1"
+
+
+def _is_claude_available() -> bool:
+    """检查 Claude CLI 是否可用"""
+    # 使用 shutil.which 检查 claude 是否在 PATH 中
+    return shutil.which("claude") is not None
 
 
 class TestTmuxSessionAutoStart:
@@ -205,8 +212,8 @@ class TestTmuxSessionAutoStart:
         return events
 
     @pytest.mark.skipif(
-        not Path("/usr/local/bin/claude").exists() and not Path("/usr/bin/claude").exists(),
-        reason="Claude Code CLI not found"
+        not _is_claude_available(),
+        reason="Claude Code CLI not found in PATH"
     )
     def test_tmux_session_auto_start_with_hook(self):
         """

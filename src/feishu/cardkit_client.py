@@ -199,7 +199,8 @@ class CardKitClient:
         self,
         card_id: str,
         content: str,
-        cancelled_cards: Optional[set] = None
+        cancelled_cards: Optional[set] = None,
+        title: Optional[str] = None
     ) -> bool:
         """
         更新卡片内容
@@ -208,6 +209,7 @@ class CardKitClient:
             card_id: 卡片ID
             content: 新内容
             cancelled_cards: 已取消的卡片集合（可选）
+            title: 动态标题（可选），如不提供则使用元数据中的标题
 
         Returns:
             更新成功返回 True，失败返回 False
@@ -224,14 +226,15 @@ class CardKitClient:
 
             # 获取卡片元数据（标题和颜色）
             metadata = self._card_metadata.get(card_id, {})
-            title = metadata.get("title", "AI 助手")
+            # 如果传入了标题则使用，否则使用元数据中的标题
+            card_title = title if title is not None else metadata.get("title", "AI 助手")
             template_color = metadata.get("template_color", "grey")
 
             card_data = {
                 "schema": "2.0",
                 "config": {"update_multi": True},
                 "header": {
-                    "title": {"tag": "plain_text", "content": title},
+                    "title": {"tag": "plain_text", "content": card_title},
                     "template": template_color
                 },
                 "body": {

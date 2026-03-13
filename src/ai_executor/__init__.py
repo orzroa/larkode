@@ -180,7 +180,8 @@ class TmuxAIExecutor:
                                     streaming_manager.finish_streaming(card_id, content)
                                 ) if is_last else asyncio.create_task(
                                     streaming_manager.update_content(card_id, content)
-                                )
+                                ),
+                                timeout=get_settings().streaming_timeout
                             )
                             return final_output
                         except asyncio.CancelledError:

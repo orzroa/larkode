@@ -29,12 +29,12 @@ if [ -f "$PID_FILE" ]; then
         rm -f "$PID_FILE"
     fi
 
-    # 额外检查：是否有其他 ai_term_lark.py 进程在运行
-    RUNNING_PIDS=$(pgrep -f "ai_term_lark.py" 2>/dev/null)
+    # 额外检查：是否有其他 larkode.py 进程在运行
+    RUNNING_PIDS=$(pgrep -f "larkode.py" 2>/dev/null)
     if [ -n "$RUNNING_PIDS" ]; then
-        echo "警告: 发现运行中的 ai_term_lark.py 进程: $RUNNING_PIDs"
+        echo "警告: 发现运行中的 larkode.py 进程: $RUNNING_PIDs"
         echo "正在停止..."
-        pkill -f "ai_term_lark.py"
+        pkill -f "larkode.py"
         sleep 1
     fi
 fi
@@ -49,7 +49,7 @@ find . -name "*.pyc" -delete 2>/dev/null || true
 
 # 启动服务
 echo "启动服务..."
-nohup uv run --no-project ai_term_lark.py > logs/stdout.log 2>&1 &
+nohup uv run --no-project larkode.py > logs/stdout.log 2>&1 &
 PID=$!
 echo $PID > "$PID_FILE"
 echo "服务已启动 (PID: $PID)"

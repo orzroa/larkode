@@ -35,6 +35,13 @@ def _get_claude_cli_path() -> str:
     return "claude"  # 默认值
 
 
+def _is_claude_available() -> bool:
+    """检查 Claude CLI 是否可用"""
+    import shutil
+    # 使用 shutil.which 检查 claude 是否在 PATH 中
+    return shutil.which("claude") is not None
+
+
 class TestTmuxClaudeStartup:
     """测试 TMUX + Claude 完整启动流程"""
 
@@ -113,9 +120,11 @@ class TestTmuxClaudeStartup:
                 "tmux", "new-session", "-d",
                 "-s", session_name,
                 "-n", "ai",
-                f"cd {workspace_dir} && {cli_path}"
+                f"mkdir -p {workspace_dir} && cd {workspace_dir} && {cli_path}"
             ]
 
+            # 打印整个cmd
+            print(cmd)
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             if result.returncode != 0:
                 print(f"创建 session 失败: {result.stderr}")
@@ -239,12 +248,8 @@ class TestTmuxClaudeStartup:
         return events
 
     @pytest.mark.skipif(
-        not Path("/usr/local/bin/claude").exists()
-        and not Path("/usr/bin/claude").exists()
-        and not Path("/home/ubuntu/.nvm/versions/node/v24.13.1/bin/claude").exists()
-        and not Path("/usr/local/bin/ccr").exists()
-        and not Path("/usr/bin/ccr").exists(),
-        reason="Claude Code CLI (claude or ccr) not found"
+        not _is_claude_available(),
+        reason="Claude Code CLI (claude or ccr) not found in PATH"
     )
     def test_tmux_claude_startup_with_session_start_hook(self):
         """
@@ -327,12 +332,8 @@ class TestTmuxClaudeStartup:
         print("TMUX + Claude 启动流程验证完成!")
 
     @pytest.mark.skipif(
-        not Path("/usr/local/bin/claude").exists()
-        and not Path("/usr/bin/claude").exists()
-        and not Path("/home/ubuntu/.nvm/versions/node/v24.13.1/bin/claude").exists()
-        and not Path("/usr/local/bin/ccr").exists()
-        and not Path("/usr/bin/ccr").exists(),
-        reason="Claude Code CLI (claude or ccr) not found"
+        not _is_claude_available(),
+        reason="Claude Code CLI (claude or ccr) not found in PATH"
     )
     def test_multiple_sessions(self):
         """
