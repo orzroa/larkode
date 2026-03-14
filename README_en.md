@@ -11,7 +11,7 @@ Integrate Feishu (Lark) with AI assistants via WebSocket long connections. The s
 | 🚀 **Zero Port Exposure** | Server actively connects to Feishu - no public IP, no port forwarding, no HTTPS certificate needed |
 | ⚡ **Real-time Streaming** | AI responses stream to Feishu cards in real-time - no waiting for complete responses |
 | 🔔 **AI Proactive Notifications** | With Hook configured, AI notifies you when tasks complete or confirmation is needed |
-| 🧠 **Smart Session Management** | Auto-detects running AI sessions, intelligently reuses or creates new ones |
+| 🧠 **Auto-start Session** | AI process starts automatically when you send a command - no manual startup needed |
 | 🔌 **Multi-AI Support** | Supports Claude Code, iFlow - factory pattern makes adding new assistants easy |
 | 📱 **Anywhere, Anytime** | Feishu App on your phone becomes your AI terminal - code even during your commute |
 | ✅ **High Test Coverage** | 600+ unit tests, core modules coverage at 63%+ |
