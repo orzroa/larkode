@@ -105,7 +105,7 @@ larkode/
 │   ├── ai_session_manager.py    # Session management
 │   ├── task_manager.py          # Task queue
 │   └── message_handler.py       # Message handling
-├── tests/                        # Unit tests (284+ tests)
+├── tests/                        # Unit tests (505+ tests)
 ├── main.py                       # Entry point
 ├── start.sh                      # Startup script
 └── requirements.txt              # Python dependencies

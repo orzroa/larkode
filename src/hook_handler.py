@@ -180,10 +180,10 @@ async def send_feishu_notification(message: str, message_type: str = "stop", eve
     # 检测流式输出模式
     streaming_card_id = os.environ.get("LARKODE_STREAMING_MODE")
     if streaming_card_id and message_type == "stop":
-        # 流式输出模式，Hook 不发送，只清理环境变量
-        logger.info(f"检测到流式输出模式 (card_id={streaming_card_id})，跳过 Hook 发送")
+        # 流式输出模式：清理环境变量，但仍然发送 stop 卡片作为小结
+        logger.info(f"检测到流式输出模式 (card_id={streaming_card_id})，将发送 stop 小结卡片")
         del os.environ["LARKODE_STREAMING_MODE"]
-        return ""
+        # 继续执行，发送 stop 卡片
 
     user_id = os.getenv("FEISHU_HOOK_NOTIFICATION_USER_ID")
     app_secret = os.getenv("FEISHU_APP_SECRET")

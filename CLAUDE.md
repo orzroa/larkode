@@ -16,16 +16,28 @@ larkode/
 │   ├── ai_executor/         # AI command executor (tmux)
 │   ├── feishu/              # Feishu API client
 │   ├── handlers/            # Event handlers
+│   ├── im_platforms/        # Multi-platform IM support (Feishu, Slack)
 │   ├── interfaces/          # Interface definitions
 │   ├── factories/           # Factory classes
+│   ├── models/              # Data models
 │   ├── storage/             # Data persistence (SQLite)
-│   └── utils/               # Utility functions
-├── tests/                   # Unit tests (284+ tests)
+│   ├── utils/               # Utility functions
+│   ├── card_builder.py     # Card message builder
+│   ├── card_dispatcher.py  # Card message dispatcher
+│   ├── exceptions.py        # Unified exception hierarchy
+│   ├── hook_handler.py      # Claude Code Hooks
+│   ├── interaction_manager.py # Interaction management
+│   ├── logging_utils.py     # Context logging
+│   ├── message_handler.py   # Message handling
+│   ├── streaming_output.py  # Streaming output manager
+│   └── task_manager.py     # Task queue management
+├── tests/                   # Unit tests (505+ tests)
 ├── data/                    # SQLite database
 ├── docs/                         # Documentation
 │   ├── todo/                     # Future improvements
 │   └── tasks/                    # Completed tasks
-└── logs/                    # Application logs
+├── logs/                    # Application logs
+└── uploads/                # Uploaded files
 ```
 
 ## Development Commands
@@ -91,37 +103,56 @@ uv run pytest tests/ -v -n0 --ignore=tests/integration/
 1. **`src/feishu/`** - Feishu API integration
    - `FeishuAPI` - Authentication, message sending
    - `FeishuWebSocketClient` - WebSocket event push (auto-reconnect)
+   - `CardkitClient` - Card message API
 
 2. **`src/ai_assistants/`** - AI assistant implementations (factory pattern)
    - `DefaultAIInterface` - Default implementation (using TmuxAIExecutor)
    - `DefaultSessionManager` - Tmux session management
 
 3. **`src/handlers/`** - Event handlers
+   - `event_parser.py` - Event parsing and dispatching
    - `event_handlers.py` - Event handling
-   - `platform_commands.py` - Platform commands
-   - `attachment_handler.py` - Attachment handling
+   - `platform_commands.py` - Platform commands (#help, #cancel, etc.)
+   - `attachment_handler.py` - Image/file attachment handling
    - `interaction_monitor.py` - Interaction monitoring
+   - `command_executor.py` - Command execution logic
 
 4. **`src/ai_executor/`** - AI command executor
    - `TmuxAIExecutor` - Execute commands in tmux session (streaming output)
+   - `ProcessMonitor` - Process health monitoring and auto-restart
 
-5. **`src/ai_session_manager.py`** - Session management
+5. **`src/im_platforms/`** - Multi-platform IM support
+   - `MultiPlatformManager` - Unified platform management
+   - `NotificationSender` - Cross-platform notification sending
+
+6. **`src/interfaces/`** - Interface definitions
+   - `IMPlatform` - Platform abstraction interface
+   - `AIAssistant` - AI assistant interface
+   - `WebSocketClient` - WebSocket client interface
+
+7. **`src/ai_session_manager.py`** - Session management
    - `AISessionManager` - Auto-detect, find, or create tmux sessions
 
-6. **`src/task_manager.py`** - Task queue management
+8. **`src/task_manager.py`** - Task queue management
    - `TaskManager` - Task queue, execution, status tracking
 
-7. **`src/storage/`** - Data persistence (SQLite)
-   - `Database` - CRUD operations for users, tasks, messages
+9. **`src/streaming_output.py`** - Streaming output management
+   - `StreamingOutputManager` - Real-time card updates for streaming output
 
-8. **`src/exceptions.py`** - Unified exception hierarchy
-   - `BaseAppError` - Base exception (code, message, details)
-   - Subclasses: ConfigError, TaskError, AIError, StorageError, PlatformError
+10. **`src/card_dispatcher.py`** - Card message dispatcher
+    - `CardDispatcher` - Unified card sending across platforms
 
-9. **`src/logging_utils.py`** - Context logging
-   - `get_logger()` - Returns ContextLogger (tracks user_id/task_id/request_id)
+11. **`src/storage/`** - Data persistence (SQLite)
+    - `Database` - CRUD operations for users, tasks, messages
 
-10. **`src/hook_handler.py`** - Claude Code Hooks
+12. **`src/exceptions.py`** - Unified exception hierarchy
+    - `BaseAppError` - Base exception (code, message, details)
+    - Subclasses: ConfigError, TaskError, AIError, StorageError, PlatformError
+
+13. **`src/logging_utils.py`** - Context logging
+    - `get_logger()` - Returns ContextLogger (tracks user_id/task_id/request_id)
+
+14. **`src/hook_handler.py`** - Claude Code Hooks
     - Captures `UserPromptSubmit`, `Stop`, `Notification` events
     - Sends Feishu notifications on key events
 

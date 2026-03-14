@@ -58,3 +58,8 @@ Thumbs.db
 *.bak
 *.tmp
 test_results.txt
+
+# pytest-cov
+.coverage
+htmlcov/
+
