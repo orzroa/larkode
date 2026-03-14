@@ -264,36 +264,6 @@ async def send_feishu_notification(message: str, message_type: str = "stop", eve
         return ""
 
 
-# 保留旧的文件上传函数作为兼容（虽然现在由 CardDispatcher 内部处理）
-async def _upload_and_send_file(feishu, user_id: str, file_content: str):
-    """上传并发送文件到飞书（已废弃，由 CardDispatcher 内部处理）
-
-    Args:
-        feishu: FeishuAPI 实例
-        user_id: 用户 ID
-        file_content: 文件内容
-
-    Returns:
-        None
-    """
-    file_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_name = f"hook_output_{file_timestamp}.txt"
-    upload_dir = PROJECT_ROOT / "uploads"
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    file_path = upload_dir / file_name
-
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(file_content)
-
-    try:
-        file_key = await feishu.upload_file(file_path, get_settings().FILE_UPLOAD_TYPE)
-        result = await feishu.send_file_message(user_id, file_key)
-        if result:
-            logger.info("成功发送文件消息")
-    except FeishuAPIError as upload_err:
-        logger.error(f"上传文件失败: {upload_err}")
-
-
 def build_permission_message(context: Union[HookContext, str], tool_input: Optional[dict] = None) -> str:
     """构建交互请求消息
 

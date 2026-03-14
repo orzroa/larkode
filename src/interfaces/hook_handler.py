@@ -241,8 +241,12 @@ def detect_handler() -> IHookHandler:
     import os
 
     # 优先检测 iFlow CLI 环境
-    if any(os.getenv(key) for key in ["IFLOW_CLI", "IFLOW_SESSION_ID", "IFLOW_HOOK_EVENT_NAME"]):
+    if any(os.getenv(key) for key in ["IFLOW_CLI_PATH", "IFLOW_SESSION_ID", "IFLOW_HOOK_EVENT_NAME"]):
         return IFlowHookHandler()
+
+    # 检测 Claude 环境变量
+    if any(os.getenv(key) for key in ["CLAUDE_SESSION_ID", "CLAUDE_CODE CLI"]):
+        return DefaultHookHandler()
 
     # 默认使用默认处理器
     return DefaultHookHandler()

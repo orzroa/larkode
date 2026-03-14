@@ -23,7 +23,7 @@ except ImportError:
 from src.ai_executor.base import AIExecutor
 from src.ai_executor.tmux_session import TmuxSessionManager
 from src.ai_executor.process_monitor import ProcessMonitor
-from src.ai_executor.interface import AIInterface, AILogReader
+from src.ai_executor.interface import AIInterface
 
 # 导出 subprocess, time, psutil 以保持测试兼容
 __all__ = ['subprocess', 'time', 'psutil']
@@ -258,7 +258,5 @@ class TmuxAIExecutor:
         return False
 
 
-# 别名（兼容旧代码）
+# 别名（测试中使用）
 TmuxClaudeCodeExecutor = TmuxAIExecutor
-ClaudeCodeInterface = AIInterface
-ClaudeCodeLogReader = AILogReader

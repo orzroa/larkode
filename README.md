@@ -31,6 +31,8 @@
 
 ### 2.2 创建飞书应用
 
+> 详细教程见：[飞书官方文档 - 创建应用机器人](https://open.feishu.cn/document/develop-a-card-interactive-bot/faqs)
+
 **步骤 1：进入飞书开放平台**
 
 访问 [飞书开放平台](https://open.feishu.cn/)，登录后点击「创建企业自建应用」。
@@ -49,7 +51,7 @@
 
 **步骤 4：配置应用权限**
 
-在「权限管理」页面，申请以下权限：
+在「权限管理」页面，申请以下权限（均为**应用身份**类型）：
 
 | 权限 | 说明 |
 |------|------|
@@ -57,6 +59,7 @@
 | `im:message.p2p_msg:readonly` | 读取用户发给机器人的单聊消息 |
 | `im:message:send_as_bot` | 以应用的身份发消息 |
 | `im:resource` | 获取与上传图片或文件资源 |
+| `cardkit:card:write` | 创建与更新卡片消息（流式输出必需） |
 
 **步骤 5：发布应用**
 
@@ -114,9 +117,12 @@ CLAUDE_CODE_WORKSPACE_DIR=/path/to/workspace
 
 4.1 获取你的飞书用户 ID：
 
-1. 在飞书中打开与机器人的对话
-2. 点击右上角「...」→ 点击自己的头像
-3. 点击「复制成员 ID」（即 open_id，格式如 `ou_xxxxx`）
+> 详细方法见：[飞书官方文档 - 获取 openId](https://open.feishu.cn/document/faq/trouble-shooting/how-to-obtain-openid)
+
+1. 登录 [API 调试台](https://open.feishu.cn/api-explorer)
+2. 找到「发送消息」接口
+3. 在查询参数中将 **user_id_type** 设置为 **open_id**
+4. 搜索或选择指定用户，点击「复制成员 ID」获取 open_id（格式如 `ou_xxxxx`）
 
 4.2 配置环境变量：
 
@@ -315,6 +321,8 @@ Integrate Feishu (Lark) with AI assistants via WebSocket long connections. The s
 
 ### 2.2 Create Feishu App
 
+> See [Feishu Official Docs - Create App Bot](https://open.feishu.cn/document/develop-a-card-interactive-bot/faqs) for detailed tutorial.
+
 **Step 1: Go to Feishu Open Platform**
 
 Visit [Feishu Open Platform](https://open.feishu.cn/), login and click "Create Enterprise Custom App".
@@ -333,7 +341,7 @@ After creation, get from "Credentials & Basic Info" page:
 
 **Step 4: Configure App Permissions**
 
-On "Permission Management" page, request these permissions:
+On "Permission Management" page, request these permissions (all are **app identity** type):
 
 | Permission | Description |
 |------------|-------------|
@@ -341,6 +349,7 @@ On "Permission Management" page, request these permissions:
 | `im:message.p2p_msg:readonly` | Read single chat messages sent by users to bot |
 | `im:message:send_as_bot` | Send messages as app |
 | `im:resource` | Get and upload image or file resources |
+| `cardkit:card:write` | Create and update card messages (required for streaming output) |
 
 **Step 5: Publish App**
 
@@ -398,9 +407,12 @@ Once configured, AI will proactively notify you when tasks complete or confirmat
 
 4.1 Get your Feishu user ID:
 
-1. Open the conversation with the bot in Feishu
-2. Click "..." in top right → click your avatar
-3. Click "Copy Member ID" (open_id, format like `ou_xxxxx`)
+> See [Feishu Official Docs - Get openId](https://open.feishu.cn/document/faq/trouble-shooting/how-to-obtain-openid) for detailed methods.
+
+1. Login to [API Debugger](https://open.feishu.cn/api-explorer)
+2. Find the "Send Message" API
+3. In query parameters, set **user_id_type** to **open_id**
+4. Search and select the user, click "Copy Member ID" to get open_id (format like `ou_xxxxx`)
 
 4.2 Configure environment variable:
 

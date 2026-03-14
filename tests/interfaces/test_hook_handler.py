@@ -355,8 +355,8 @@ class TestDetectHandler:
             assert handler.name == "default"
 
     def test_detect_iflow_by_iflow_cli(self):
-        """测试通过 IFLOW_CLI 检测 iFlow 处理器"""
-        with patch.dict(os.environ, {"IFLOW_CLI": "iflow"}):
+        """测试通过 IFLOW_CLI_PATH 检测 iFlow 处理器"""
+        with patch.dict(os.environ, {"IFLOW_CLI_PATH": "iflow"}):
             handler = detect_handler()
             assert isinstance(handler, IFlowHookHandler)
             assert handler.name == "iflow"
@@ -377,7 +377,7 @@ class TestDetectHandler:
 
     def test_claude_env_takes_precedence(self):
         """测试 Claude 环境变量时默认使用 Claude"""
-        with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "claude-session"}):
+        with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "claude-session"}, clear=True):
             handler = detect_handler()
             assert isinstance(handler, ClaudeHookHandler)
 

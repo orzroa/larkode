@@ -21,42 +21,20 @@ larkode/
 │   ├── factories/           # Factory classes
 │   ├── models/              # Data models
 │   ├── storage/             # Data persistence (SQLite)
-│   ├── utils/               # Utility functions
-│   ├── card_builder.py     # Card message builder
-│   ├── card_dispatcher.py  # Card message dispatcher
-│   ├── exceptions.py        # Unified exception hierarchy
-│   ├── hook_handler.py      # Claude Code Hooks
-│   ├── interaction_manager.py # Interaction management
-│   ├── logging_utils.py     # Context logging
-│   ├── message_handler.py   # Message handling
-│   ├── streaming_output.py  # Streaming output manager
-│   └── task_manager.py     # Task queue management
-├── tests/                   # Unit tests (505+ tests)
+│   └── utils/               # Utility functions
+├── tests/                   # Unit tests (770+ tests)
 ├── data/                    # SQLite database
-├── docs/                         # Documentation
-│   ├── todo/                     # Future improvements
-│   └── tasks/                    # Completed tasks
+├── docs/                    # Documentation
+│   ├── todo/                # Future improvements (e.g., n001-xxx.md)
+│   ├── done/                # Completed tasks (e.g., n001-xxx.md)
+│   ├── 3rd/                 # Third-party docs and references
+│   ├── dict/                # Terms and glossary
+│   └── testcases/           # Test cases and samples
 ├── logs/                    # Application logs
 └── uploads/                # Uploaded files
 ```
 
 ## Development Commands
-
-### Setup
-```bash
-# Create virtual environment
-uv venv
-
-# Install dependencies
-uv pip install -r requirements.txt
-
-# Configure environment variables
-cp .env.example .env
-# Edit .env with your Feishu app credentials
-
-# Start the service
-./start.sh
-```
 
 ### Testing
 ```bash
@@ -74,6 +52,9 @@ uv run pytest tests/ -v -n0 --ignore=tests/integration/
 
 ### Main Environment Variables (.env)
 
+**Platform Configuration**
+- `IM_PLATFORM` - IM platform selection (`feishu`, `slack`, etc.)
+
 **Feishu Configuration**
 - `FEISHU_APP_ID` - Feishu app ID
 - `FEISHU_APP_SECRET` - Feishu app secret
@@ -83,7 +64,6 @@ uv run pytest tests/ -v -n0 --ignore=tests/integration/
 **AI Assistant Configuration**
 - `AI_ASSISTANT_TYPE` - AI assistant type (`claude_code`, `iflow`)
 - `CLAUDE_CODE_WORKSPACE_DIR` - Claude Code workspace directory (required)
-- `CLAUDE_CODE_SESSION_ID` - Fixed session ID (optional, auto-detect)
 - `CLAUDE_CODE_CLI_PATH` - Claude Code CLI path (default `claude`)
 - `AI_HOOK_SCRIPT` - Hook script path (default `src/hook_handler.py`)
 
@@ -92,11 +72,7 @@ uv run pytest tests/ -v -n0 --ignore=tests/integration/
 - `TASK_TIMEOUT` - Task timeout in seconds (default 300)
 - `DB_PATH` - SQLite database path (default `./data/larkode.db`)
 
-### Feishu Bot Permissions
-- `im:message:readonly` - Get messages
-- `im:message.p2p_msg:readonly` - Read p2p messages
-- `im:message:send_as_bot` - Send messages as bot
-- `im:resource` - Upload/download files
+**Note**: See README.md for Feishu bot permissions (应用身份).
 
 ## Core Components
 
@@ -168,25 +144,13 @@ uv run pytest tests/ -v -n0 --ignore=tests/integration/
 8. Results are sent back via Feishu card messages
 9. All interactions are stored in SQLite database
 
-## Available Commands
-
-| Command | Description |
-|---------|-------------|
-| `#help` | Show help information |
-| `#cancel` | Cancel current running task |
-| `#history` | Show message history |
-| `#shot` | View tmux screenshot |
-| `#model` | View or switch CCR model |
-
-Or simply type any command directly to execute it in AI assistant.
-
 ## Hooks Configuration
 
 To enable AI active notifications, configure Claude Code Hook:
 
 1. Copy `claude_settings.example.json` to `~/.claude/settings.json`
 2. Update the paths to point to your project's `src/hook_handler.py`
-3. Configure the hooks: `UserPromptSubmit`, `Stop`, `PermissionRequest`, `PreToolUse`, `SubagentStop`
+3. Configure the hooks: `UserPromptSubmit`, `Stop`, `Notification`
 
 See README.md for detailed Hook configuration steps.
 
@@ -202,14 +166,6 @@ See README.md for detailed Hook configuration steps.
 - **Session Management**: Auto-detects running AI processes, finds/reuses sessions, or creates new ones in tmux
 - **Multiple AI Support**: Supports Claude Code, iFlow via `AI_ASSISTANT_TYPE`
 
-## Main Dependencies
+## Dependencies
 
-- `uv` - Python package manager (recommended)
-- `lark-oapi>=1.2.24` - Feishu/Lark official SDK
-- `python-dotenv>=1.0.0` - Environment variable management
-- `pydantic>=2.5.3` - Data validation
-- `pydantic-settings>=2.0.0` - Pydantic Settings
-- `psutil>=5.9.0` - Process and system utilities
-- `pytest>=7.0.0` - Testing framework
-
-**Note**: Claude Code CLI needs to be installed separately via `npm install -g @anthropic-ai/claude-code`
+See `requirements.txt` and `requirements-test.txt` for full dependency list.

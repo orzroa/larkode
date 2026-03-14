@@ -23,8 +23,8 @@ class TestTmuxSessionManagerInit:
         settings.CLAUDE_CODE_CLI_PATH = "claude"
         settings.CLAUDE_CODE_WORKSPACE_DIR = Path("/test/workspace")
         settings.TMUX_SESSION_NAME = "cc"
-        settings.IFLOW_CLI = "iflow"
-        settings.IFLOW_DIR = Path("/test/iflow")
+        settings.IFLOW_CLI_PATH = "iflow"
+        settings.IFLOW_WORKSPACE_DIR = Path("/test/iflow")
         settings.get_process_name = Mock(return_value="claude")
         return settings
 

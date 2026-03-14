@@ -68,7 +68,3 @@ def get_card_id_manager() -> CardIdManager:
     return _card_id_manager
 
 
-# 兼容旧接口
-def get_message_number_manager() -> CardIdManager:
-    """获取全局卡片编号管理器（兼容旧接口）"""
-    return get_card_id_manager()

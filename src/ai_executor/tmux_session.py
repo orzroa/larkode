@@ -34,8 +34,8 @@ class TmuxSessionManager:
     def __init__(self, workspace: Optional[Path] = None):
         # 根据 AI_ASSISTANT_TYPE 配置选择 CLI 和 tmux session
         if get_settings().AI_ASSISTANT_TYPE == "iflow":
-            self._cli_path = get_settings().IFLOW_CLI
-            self.workspace = workspace or get_settings().IFLOW_DIR
+            self._cli_path = get_settings().IFLOW_CLI_PATH
+            self.workspace = workspace or get_settings().IFLOW_WORKSPACE_DIR
         else:
             self._cli_path = get_settings().CLAUDE_CODE_CLI_PATH
             self.workspace = workspace or get_settings().CLAUDE_CODE_WORKSPACE_DIR

@@ -67,14 +67,21 @@ class MessageHandler:
                 from src.im_platforms import register_feishu_platform
                 register_feishu_platform()
 
-            # 创建飞书平台配置
-            config = PlatformConfig(
-                app_id=get_settings().FEISHU_APP_ID,
-                app_secret=get_settings().FEISHU_APP_SECRET,
-                domain=get_settings().FEISHU_MESSAGE_DOMAIN,
-                receive_id_type=get_settings().FEISHU_MESSAGE_RECEIVE_ID_TYPE,
-            )
-            platform = IMPlatformFactory.create_platform("feishu", config)
+            # 使用 IM_PLATFORM 配置创建平台
+            platform_type = get_settings().IM_PLATFORM
+
+            # 根据平台类型创建相应配置
+            if platform_type == "feishu":
+                config = PlatformConfig(
+                    app_id=get_settings().FEISHU_APP_ID,
+                    app_secret=get_settings().FEISHU_APP_SECRET,
+                    domain=get_settings().FEISHU_MESSAGE_DOMAIN,
+                    receive_id_type=get_settings().FEISHU_MESSAGE_RECEIVE_ID_TYPE,
+                )
+            else:
+                config = PlatformConfig()
+
+            platform = IMPlatformFactory.create_platform(platform_type, config)
 
         self.platform = platform
         self.tm = task_manager

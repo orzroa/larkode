@@ -69,31 +69,3 @@ class AIInterface:
     def is_running(self) -> bool:
         """检查是否在执行"""
         return self.executor.is_task_running("current")
-
-
-class AILogReader:
-    """AI 日志读取器"""
-
-    def __init__(self, log_file: Optional[Path] = None):
-        self.log_file = log_file or get_settings().CLAUDE_CODE_LOG_FILE
-
-    async def tail_logs(self, lines: int = 100) -> list[str]:
-        """读取最后N行日志"""
-        if not self.log_file or not self.log_file.exists():
-            return []
-
-        try:
-            # 使用tail命令读取日志
-            process = await asyncio.create_subprocess_exec(
-                "tail",
-                f"-{lines}",
-                str(self.log_file),
-                stdout=asyncio.subprocess.PIPE
-            )
-
-            stdout, _ = await process.communicate()
-            return stdout.decode('utf-8', errors='replace').split('\n')
-
-        except Exception as e:
-            logger.error(f"读取日志失败: {e}", exc_info=True)
-            return []

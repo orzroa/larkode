@@ -70,7 +70,6 @@ class TaskManager:
                 assistant_type=AssistantType.DEFAULT,
                 workspace=workspace,
                 cli_path=get_settings().CLAUDE_CODE_CLI_PATH,
-                session_id=get_settings().CLAUDE_CODE_SESSION_ID,
                 use_tmux_executor=True,  # 总是使用 tmux 模式
             )
 
