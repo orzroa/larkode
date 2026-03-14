@@ -15,7 +15,8 @@ Integrate Feishu (Lark) with AI assistants via WebSocket long connections. The s
 | 🔔 **AI Proactive Notifications** | With Hook configured, AI notifies you when tasks complete or confirmation is needed |
 | 🧠 **Auto-start Session** | AI process starts automatically when you send a command - no manual startup needed |
 | 🔌 **Multi-AI Support** | Supports Claude Code, iFlow - factory pattern makes adding new assistants easy |
-| 📱 **Anywhere, Anytime** | Feishu App on your phone becomes your AI terminal - code even during your commute |
+| 💬 **Multi-IM Framework** | Architecture supports multiple IM platforms (Feishu, Slack, etc.) - easy to extend with minor adaptation |
+| 🎛️ **CCR Built-in** | Built-in Claude Code Router support - switch models anytime from mobile |
 | ✅ **High Test Coverage** | 600+ unit tests, core modules coverage at 63%+ |
 
 ---
