@@ -13,7 +13,7 @@
 | 🔔 **AI 主动通知** | 配置 Hook 后，AI 完成任务或需要确认时主动通知你 |
 | 🧠 **自动拉起会话** | 发送指令后自动启动 AI 进程，无需手动启动 |
 | 🔌 **多 AI 支持** | 支持 Claude Code、iFlow，工厂模式易于扩展新助手 |
-| 💬 **多 IM 框架** | 架构已支持多 IM 平台（飞书、Slack 等未经测试），只需稍作适配即可扩展 |
+| 💬 **多 IM 框架** | 架构支持多 IM 平台，可适配Slack、钉钉等IM 框架  |
 | 🎛️ **CCR 支持** | 内置对 Claude Code Router 的支持，手机端随时切换模型 |
 | ✅ **高测试覆盖** | 600+ 单元测试，核心模块覆盖率达 63%+ |
 
@@ -297,7 +297,7 @@ Integrate Feishu (Lark) with AI assistants via WebSocket long connections. The s
 | 🔔 **AI Proactive Notifications** | With Hook configured, AI notifies you when tasks complete or confirmation is needed |
 | 🧠 **Auto-start Session** | AI process starts automatically when you send a command - no manual startup needed |
 | 🔌 **Multi-AI Support** | Supports Claude Code, iFlow - factory pattern makes adding new assistants easy |
-| 💬 **Multi-IM Framework** | Architecture supports multiple IM platforms (Feishu, Slack untested) - easy to extend with minor adaptation |
+| 💬 **Multi-IM Framework** | Architecture supports multiple IM platforms - easy to extend |
 | 🎛️ **CCR Support** | Built-in support for Claude Code Router - switch models anytime from mobile |
 | ✅ **High Test Coverage** | 600+ unit tests, core modules coverage at 63%+ |
 
