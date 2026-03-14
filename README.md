@@ -1,189 +1,191 @@
 # Larkode
 
-Integrate Feishu (Lark) with AI assistants via WebSocket long connections. The server actively connects to Feishu to receive events - no external port exposure required.
+[English](README_en.md) | 中文
 
-## Quick Start
+通过 WebSocket 长连接将飞书（Lark）与 AI 助手集成。服务器主动连接到飞书接收事件，无需暴露外部端口。
 
-### Install uv
+## 快速开始
+
+### 安装 uv
 
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Or use pip
+# 或使用 pip
 pip install uv
 ```
 
-### Install Project Dependencies
+### 安装项目依赖
 
 ```bash
-# 1. Clone the project
+# 1. 克隆项目
 git clone <repository-url>
 cd larkode
 
-# 2. Create virtual environment (creates .venv folder automatically)
+# 2. 创建虚拟环境（自动创建 .venv 文件夹）
 uv venv
 
-# 3. Install dependencies
+# 3. 安装依赖
 uv pip install -r requirements.txt
 
-# Claude Code CLI needs to be installed separately
+# Claude Code CLI 需要单独安装
 npm install -g @anthropic-ai/claude-code
 
-# 4. Configure environment variables
+# 4. 配置环境变量
 cp .env.example .env
-# Edit .env with your Feishu app credentials
+# 编辑 .env 填入飞书应用凭据
 
-# 5. Start the service
+# 5. 启动服务
 ./start.sh
-# Or run directly
+# 或直接运行
 uv run python main.py
 ```
 
-## Requirements
+## 环境要求
 
-| Component | Requirement | Notes |
-|-----------|-------------|-------|
+| 环境组件 | 要求 | 说明 |
+|------|------|------|
 | Python | 3.11+ | |
-| Node.js | 18+ | For Claude Code CLI |
-| tmux | Latest | For Session management |
+| Node.js | 18+ | 用于 Claude Code CLI |
+| tmux | 最新版 | 用于 Session 管理 |
 
-## Features
+## 功能特性
 
-- WebSocket long connections, server actively connects to Feishu
-- Real-time responses, command execution results returned in real-time
-- Task queue management, supports async execution and cancellation
-- SQLite data persistence
-- Rich Feishu interactive card display
-- Intelligent Session management, auto-detects or creates AI assistant sessions
-- Multiple AI assistant support (Claude Code, iFlow)
-- Unified exception handling and logging system
+- WebSocket 长连接，服务器主动连接飞书
+- 实时响应，命令执行结果实时返回
+- 任务队列管理，支持异步执行和取消
+- SQLite 数据持久化
+- 飞书富交互卡片展示
+- 智能 Session 管理，自动检测或创建 AI 助手 Session
+- 多种 AI 助手支持（Claude Code、iFlow）
+- 统一的异常处理和日志系统
 
-## Architecture
+## 架构
 
 ```
-Feishu Client
-    ↓ WebSocket Event
-WebSocket Client
-    ↓ Event Dispatch
-Message Handler → Task Manager → AI Assistant Factory → Session Manager → Tmux Executor
+飞书用户端
+    ↓ WebSocket 事件
+WebSocket 客户端
+    ↓ 事件分发
+消息处理器 → 任务管理器 → AI 助手工厂 → Session 管理 → Tmux 执行器
     ↓
-Card Builder → Feishu API
+卡片构建器 → 飞书 API
 ```
 
-## Directory Structure
+## 目录结构
 
 ```
 larkode/
-├── claude_settings.example.json  # Claude Code Hook configuration example
-├── src/config/                   # Configuration management
+├── claude_settings.example.json  # Claude Code Hook 配置示例
+├── src/config/                   # 配置管理
 │   └── settings.py              # Pydantic Settings
-├── data/                         # SQLite database
-├── docs/                         # Documentation
-│   ├── todo/                     # TODO items
-│   └── tasks/                    # Completed tasks
-├── logs/                         # Log files
-├── src/                          # Source code
-│   ├── ai_assistants/           # AI assistant implementations (factory pattern)
-│   │   └── default/             # Default implementation
-│   ├── ai_executor/             # AI command executor
-│   ├── feishu/                  # Feishu API
-│   ├── handlers/                # Event handlers
-│   │   ├── event_handlers.py   # Event handling
-│   │   ├── platform_commands.py # Platform commands
-│   │   ├── attachment_handler.py # Attachment handling
-│   │   └── interaction_monitor.py # Interaction monitoring
-│   ├── interfaces/              # Interface definitions
-│   ├── factories/               # Factory classes
-│   ├── models/                  # Data models
-│   ├── storage/                  # Data persistence
-│   ├── utils/                   # Utility functions
-│   │   ├── tmux_utils.py        # Tmux utilities
-│   │   └── message_number.py   # Message numbering
-│   ├── exceptions.py            # Unified exception hierarchy
-│   ├── logging_utils.py         # Logging utilities
-│   ├── ai_session_manager.py    # Session management
-│   ├── task_manager.py          # Task queue
-│   └── message_handler.py       # Message handling
-├── tests/                        # Unit tests (505+ tests)
-├── main.py                       # Entry point
-├── start.sh                      # Startup script
-└── requirements.txt              # Python dependencies
+├── data/                         # SQLite 数据库
+├── docs/                         # 文档
+│   ├── todo/                     # 待办事项
+│   └── tasks/                    # 已完成任务
+├── logs/                         # 日志文件
+├── src/                          # 源代码
+│   ├── ai_assistants/           # AI 助手实现（工厂模式）
+│   │   └── default/             # 默认实现
+│   ├── ai_executor/             # AI 命令执行器
+│   ├── feishu/                  # 飞书 API
+│   ├── handlers/                # 事件处理器
+│   │   ├── event_handlers.py   # 事件处理
+│   │   ├── platform_commands.py # 平台命令
+│   │   ├── attachment_handler.py # 附件处理
+│   │   └── interaction_monitor.py # 交互监控
+│   ├── interfaces/              # 接口定义
+│   ├── factories/               # 工厂类
+│   ├── models/                  # 数据模型
+│   ├── storage/                  # 数据持久化
+│   ├── utils/                   # 工具函数
+│   │   ├── tmux_utils.py        # Tmux 工具
+│   │   └── message_number.py   # 消息编号
+│   ├── exceptions.py            # 统一异常体系
+│   ├── logging_utils.py         # 日志工具
+│   ├── ai_session_manager.py    # Session 管理
+│   ├── task_manager.py          # 任务队列
+│   └── message_handler.py       # 消息处理
+├── tests/                        # 单元测试（284+ 测试）
+├── main.py                       # 入口
+├── start.sh                      # 启动脚本
+└── requirements.txt              # Python 依赖
 ```
 
-## Commands
+## 命令
 
-| Command | Description |
-|---------|-------------|
-| Any command | Execute AI assistant command |
-| #help | Show help |
-| #cancel | Cancel current execution |
-| #history | View message history |
-| #shot | View tmux screenshot |
-| #model | View or switch model |
+| 命令 | 说明 |
+|------|------|
+| 任意命令 | 执行 AI 助手命令 |
+| #help | 显示帮助 |
+| #cancel | 取消当前运行 |
+| #history | 查看历史消息 |
+| #shot | 查看 tmux 截屏 |
+| #model | 查看或切换模型 |
 
-## Configuration
+## 配置
 
-### Environment Variables
+### 环境变量
 
-Main `.env` file configuration:
+`.env` 文件主要配置：
 
 ```env
-# Feishu app (used when IM_PLATFORM=feishu)
+# 飞书应用（IM_PLATFORM=feishu 时使用）
 FEISHU_APP_ID=cli_xxxxx
 FEISHU_APP_SECRET=xxxxx
 FEISHU_MESSAGE_DOMAIN=FEISHU_DOMAIN
 
-# AI assistant configuration
-AI_ASSISTANT_TYPE=claude_code  # or iflow
+# AI 助手配置
+AI_ASSISTANT_TYPE=claude_code  # 或 iflow
 CLAUDE_CODE_WORKSPACE_DIR=/path/to/workspace
-CLAUDE_CODE_SESSION_ID=         # Optional, auto-detect
-CLAUDE_CODE_CLI_PATH=           # Optional, default claude
+CLAUDE_CODE_SESSION_ID=         # 可选，自动检测
+CLAUDE_CODE_CLI_PATH=           # 可选，默认 claude
 
-# Message configuration
+# 消息配置
 CARD_MAX_LENGTH=1500
 USE_SAFE_CARD_FORMATTING=true
 
-# Hook configuration
+# Hook 配置
 HOOK_ENABLED=true
 AI_HOOK_SCRIPT=src/hook_handler.py
 
-# Hook notification user ID (optional)
-# When set, AI key events will notify the specified user
-# Get it: Right-click your avatar in Feishu -> Copy ID -> open_id
+# Hook 通知用户 ID（可选）
+# 设置后，AI 的关键事件会通知到指定用户
+# 获取方式：飞书中右键点击自己头像 -> 复制 ID -> open_id
 FEISHU_HOOK_NOTIFICATION_USER_ID=
 ```
 
-### Configure Claude Code Hook (Important!)
+### 配置 Claude Code Hook（重要！）
 
-To enable AI proactive notifications, configure Claude Code Hook:
+为了让 AI 主动通知你，需要配置 Claude Code 的 Hook：
 
-**Step 1: Get your Feishu user ID**
-1. Open the conversation with the bot in Feishu
-2. Right-click your avatar
-3. Select "Copy Member ID" (open_id)
+**步骤 1：获取你的飞书用户 ID**
+1. 在飞书中打开与机器人的对话
+2. 右键点击自己的头像
+3. 选择"复制成员 ID"（open_id）
 
-**Step 2: Configure environment variables**
-Add to `.env` file:
+**步骤 2：配置环境变量**
+在 `.env` 文件中添加：
 ```bash
-# Replace with your Feishu user ID
+# 替换为你的飞书用户 ID
 FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
 ```
 
-**Step 3: Configure Claude Code settings**
-1. Create or edit `~/.claude/settings.json` in your system home directory:
+**步骤 3：配置 Claude Code 设置**
+1. 在系统主目录创建或编辑 `~/.claude/settings.json`：
 ```bash
-# For first-time configuration:
+# 如果是首次配置：
 mkdir -p ~/.claude
 cp /path/to/larkode/claude_settings.example.json ~/.claude/settings.json
 ```
 
-2. Edit `~/.claude/settings.json`, add hooks configuration, replace paths with actual paths:
+2. 编辑 `~/.claude/settings.json`，增加hooks 配置项，将路径替换为实际路径：
 ```json
 {
-  # Existing configuration items
+  # 原有配置项
   ...
-  # New hooks configuration
+  # 新增 hooks 配置项
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -222,67 +224,64 @@ cp /path/to/larkode/claude_settings.example.json ~/.claude/settings.json
 }
 ```
 
-**Step 4: Restart Claude Code**
-After configuration, restart Claude Code service for changes to take effect.
+**步骤 4：重启 Claude Code**
+配置完成后，重启 Claude Code 服务使配置生效。
 
-### Feishu App Permissions
+### 飞书应用权限
 
-Ensure your Feishu app has the following permissions:
+确保飞书应用具有以下权限：
 
-**Required Permissions (5):**
-| Permission | Description |
-|------------|-------------|
-| `im:message:readonly` | Get single chat, group messages |
-| `im:message.p2p_msg:readonly` | Read single chat messages sent by users to bot |
-| `im:message:send_as_bot` | Send messages as app |
-| `im:resource` | Get and upload image or file resources |
-| `cardkit:card:write` | Create and update cards (required for streaming output) |
+**需要申请的权限（4个）：**
+| 权限 | 说明 |
+|------|------|
+| `im:message:readonly` | 获取单聊、群组消息 |
+| `im:message.p2p_msg:readonly` | 读取用户发给机器人的单聊消息 |
+| `im:message:send_as_bot` | 以应用的身份发消息 |
+| `im:resource` | 获取与上传图片或文件资源 |
 
-**API Call List:**
-1. `im.v1.message.create` - Send text/card/file messages
-2. `im.v1.message_resource.get` - Download images in messages
-3. `im.v1.file.create` - Upload files/images return file_key
-4. `cardkit.v1.card.create` - Create card entities (streaming output)
-5. `cardkit.v1.card.update` - Update card content (streaming output)
-6. WebSocket (`wss://open.feishu.cn/open-apis/ws/v4/app/...`) - Receive message events
+**API 调用清单：**
+1. `im.v1.message.create` - 发送文本/卡片/文件消息
+2. `im.v1.message_resource.get` - 下载消息中的图片
+3. `im.v1.file.create` - 上传文件/图片返回 file_key
+4. WebSocket (`wss://open.feishu.cn/open-apis/ws/v4/app/...`) - 接收消息事件
 
-**Permission Application Location:** Feishu Open Platform → App Details → Permission Management
+**权限申请位置：** 飞书开放平台 → 应用详情 → 权限管理
 
-## Logs
+## 日志
 
-- `logs/app.log` - Application logs
-- `logs/stdout.log` - Process output logs
-- `logs/hook_events.log` - Hook event logs
+- `logs/app.log` - 应用日志
+- `logs/stdout.log` - 进程输出日志
+- `logs/hook_events.log` - Hook 事件日志
 
-## Testing
+## 测试
 
 ```bash
-# Run all tests
+# 运行所有测试
 uv run pytest tests/ -v
 
-# Or use test script
+# 或使用测试脚本
 ./tests/run_all_tests.sh
 ```
 
-## FAQ
+## 常见问题
 
-### Q: How to choose AI assistant?
+### Q: 如何选择 AI 助手？
 
-Configure via `AI_ASSISTANT_TYPE` environment variable:
-- `claude_code` - Use Claude Code (default)
-- `iflow` - Use iFlow CLI
+通过 `AI_ASSISTANT_TYPE` 环境变量配置：
+- `claude_code` - 使用 Claude Code（默认）
+- `iflow` - 使用 iFlow CLI
 
-### Q: How to view service logs?
+### Q: 如何查看服务日志？
 
 ```bash
 tail -f logs/app.log
 ```
 
-### Q: What to do if service startup fails?
+### Q: 服务启动失败怎么办？
 
-1. Check if `.env` configuration is correct
-2. Confirm Feishu app credentials are valid
-3. Check error messages in logs
+1. 检查 `.env` 配置是否正确
+2. 确认飞书应用凭据有效
+3. 查看日志中的错误信息
 
 ## License
 
