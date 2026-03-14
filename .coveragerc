@@ -1,0 +1,49 @@
+# =============================================================================
+# Coverage 配置文件
+# =============================================================================
+# 精细排除不需要测试覆盖的代码
+#
+# 排除原因说明：
+# 1. api_server.py - 仅用于集成测试的 HTTP API 服务器
+# 2. interfaces/* - 抽象接口定义，通过具体实现类测试
+# 3. im_platforms/slack/* - Slack 集成尚未测试（标注为未完成）
+# =============================================================================
+
+[run]
+# 指定源代码目录
+source = src
+
+# 排除整个文件
+omit =
+    # 测试工具
+    src/api_server.py
+    # Slack 集成（未测试）
+    src/im_platforms/slack/*
+
+[report]
+# 排除特定代码行
+exclude_lines =
+    # 标准排除
+    pragma: no cover
+
+    # 类型检查块
+    if TYPE_CHECKING:
+
+    # 抽象方法
+    @abstractmethod
+    raise NotImplementedError
+
+    # 防御性编程
+    raise AssertionError
+    assert False
+
+    # 简单的 pass/... 占位
+    pass
+    \.\.\.
+
+# 不显示已排除文件的覆盖率为 0%
+skip_empty = true
+
+[html]
+# HTML 报告标题
+title = Larkode Coverage Report
