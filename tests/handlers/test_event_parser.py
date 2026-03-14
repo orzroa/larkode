@@ -201,3 +201,178 @@ class TestEventParser:
         callback = AsyncMock()
         event_parser.set_execute_command_callback(callback)
         assert event_parser._on_execute_command == callback
+
+
+class TestHandleNormalizedMessage:
+    """测试 _handle_normalized_message 方法"""
+
+    @pytest.fixture
+    def mock_platform(self):
+        """创建模拟的 IM 平台"""
+        platform = Mock()
+        platform.parse_event = Mock(return_value=None)
+        return platform
+
+    @pytest.fixture
+    def mock_attachment_handler(self):
+        """创建模拟的附件处理器"""
+        handler = Mock()
+        handler.handle_image_attachment = AsyncMock(return_value="Read image command")
+        handler.handle_file_attachment = AsyncMock(return_value="Read file command")
+        handler.handle_voice_attachment = AsyncMock(return_value="Listen audio command")
+        return handler
+
+    @pytest.fixture
+    def event_parser(self, mock_platform, mock_attachment_handler):
+        """创建事件解析器实例"""
+        from src.handlers.event_parser import EventParser
+        return EventParser(
+            platform=mock_platform,
+            attachment_handler=mock_attachment_handler
+        )
+
+    @pytest.mark.asyncio
+    async def test_handle_normalized_text_message(self, event_parser):
+        """测试处理标准化文本消息"""
+        from src.interfaces.im_platform import MessageType, NormalizedMessage
+
+        normalized_message = NormalizedMessage(
+            message_id="msg_123",
+            user_id="user_123",
+            chat_id="chat_123",
+            message_type=MessageType.TEXT,
+            content="Hello world",
+            raw_data={}
+        )
+
+        with patch('src.handlers.command_executor.command_executor') as mock_executor:
+            mock_executor.process_command = AsyncMock()
+
+            await event_parser._handle_normalized_message(normalized_message)
+
+            mock_executor.process_command.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_normalized_image_message(self, event_parser, mock_attachment_handler):
+        """测试处理标准化图片消息"""
+        from src.interfaces.im_platform import MessageType, NormalizedMessage
+
+        normalized_message = NormalizedMessage(
+            message_id="msg_123",
+            user_id="user_123",
+            chat_id="chat_123",
+            message_type=MessageType.IMAGE,
+            content="",
+            raw_data={},
+            attachments=[{"file_key": "img_123"}]
+        )
+
+        callback = AsyncMock()
+        event_parser.set_execute_command_callback(callback)
+
+        await event_parser._handle_normalized_message(normalized_message)
+
+        mock_attachment_handler.handle_image_attachment.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_normalized_file_message(self, event_parser, mock_attachment_handler):
+        """测试处理标准化文件消息"""
+        from src.interfaces.im_platform import MessageType, NormalizedMessage
+
+        normalized_message = NormalizedMessage(
+            message_id="msg_123",
+            user_id="user_123",
+            chat_id="chat_123",
+            message_type=MessageType.FILE,
+            content="",
+            raw_data={},
+            attachments=[{"file_key": "file_123"}]
+        )
+
+        callback = AsyncMock()
+        event_parser.set_execute_command_callback(callback)
+
+        await event_parser._handle_normalized_message(normalized_message)
+
+        mock_attachment_handler.handle_file_attachment.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_normalized_voice_message(self, event_parser, mock_attachment_handler):
+        """测试处理标准化语音消息"""
+        from src.interfaces.im_platform import MessageType, NormalizedMessage
+
+        normalized_message = NormalizedMessage(
+            message_id="msg_123",
+            user_id="user_123",
+            chat_id="chat_123",
+            message_type=MessageType.VOICE,
+            content="",
+            raw_data={},
+            attachments=[{"file_key": "audio_123"}]
+        )
+
+        callback = AsyncMock()
+        event_parser.set_execute_command_callback(callback)
+
+        await event_parser._handle_normalized_message(normalized_message)
+
+        mock_attachment_handler.handle_voice_attachment.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_normalized_message_empty_content(self, event_parser):
+        """测试处理空内容的文本消息"""
+        from src.interfaces.im_platform import MessageType, NormalizedMessage
+
+        normalized_message = NormalizedMessage(
+            message_id="msg_123",
+            user_id="user_123",
+            chat_id="chat_123",
+            message_type=MessageType.TEXT,
+            content="",
+            raw_data={}
+        )
+
+        # 应该直接返回，不处理
+        await event_parser._handle_normalized_message(normalized_message)
+
+    @pytest.mark.asyncio
+    async def test_handle_normalized_message_exception(self, event_parser):
+        """测试处理标准化消息异常"""
+        from src.interfaces.im_platform import MessageType, NormalizedMessage
+
+        normalized_message = NormalizedMessage(
+            message_id="msg_123",
+            user_id="user_123",
+            chat_id="chat_123",
+            message_type=MessageType.TEXT,
+            content="Hello",
+            raw_data={}
+        )
+
+        with patch('src.handlers.command_executor.command_executor') as mock_executor:
+            mock_executor.process_command = AsyncMock(side_effect=Exception("Test error"))
+
+            # 应该捕获异常，不抛出
+            await event_parser._handle_normalized_message(normalized_message)
+
+
+class TestDispatchCommand:
+    """测试 _dispatch_command 方法"""
+
+    @pytest.fixture
+    def event_parser(self):
+        """创建事件解析器实例"""
+        from src.handlers.event_parser import EventParser
+        return EventParser()
+
+    @pytest.mark.asyncio
+    async def test_dispatch_command(self, event_parser):
+        """测试分发命令"""
+        with patch('src.handlers.command_executor.command_executor') as mock_executor:
+            mock_executor.process_command = AsyncMock()
+
+            await event_parser._dispatch_command("user_123", "test command", "msg_123")
+
+            mock_executor.process_command.assert_called_once_with(
+                "user_123", "test command", "msg_123"
+            )

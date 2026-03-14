@@ -15,7 +15,7 @@
 | 🔌 **多 AI 支持** | 支持 Claude Code、iFlow，工厂模式易于扩展新助手 |
 | 💬 **多 IM 框架** | 架构支持多 IM 平台，可适配Slack、钉钉等IM 框架  |
 | 🎛️ **CCR 支持** | 内置对 Claude Code Router 的支持，手机端随时切换模型 |
-| ✅ **高测试覆盖** | 600+ 单元测试，核心模块覆盖率达 63%+ |
+| ✅ **高测试覆盖** | 778+ 单元测试，代码覆盖率达 81% |
 
 ---
 
@@ -224,7 +224,7 @@ larkode/
 │   ├── ai_session_manager.py
 │   ├── task_manager.py
 │   └── message_handler.py
-├── tests/                   # 单元测试（600+ 测试）
+├── tests/                   # 单元测试（778+ 测试）
 ├── data/                    # SQLite 数据库
 ├── logs/                    # 日志文件
 ├── docs/                    # 文档
@@ -299,7 +299,7 @@ Integrate Feishu (Lark) with AI assistants via WebSocket long connections. The s
 | 🔌 **Multi-AI Support** | Supports Claude Code, iFlow - factory pattern makes adding new assistants easy |
 | 💬 **Multi-IM Framework** | Architecture supports multiple IM platforms - easy to extend |
 | 🎛️ **CCR Support** | Built-in support for Claude Code Router - switch models anytime from mobile |
-| ✅ **High Test Coverage** | 600+ unit tests, core modules coverage at 63%+ |
+| ✅ **High Test Coverage** | 778+ unit tests, code coverage at 81% |
 
 ---
 
@@ -508,7 +508,7 @@ larkode/
 │   ├── ai_session_manager.py
 │   ├── task_manager.py
 │   └── message_handler.py
-├── tests/                   # Unit tests (600+ tests)
+├── tests/                   # Unit tests (778+ tests)
 ├── data/                    # SQLite database
 ├── logs/                    # Log files
 ├── docs/                    # Documentation

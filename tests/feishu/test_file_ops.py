@@ -4,11 +4,19 @@
 主要测试：
 1. 音频格式检测函数 _detect_audio_extension
 2. 图片/音频互斥分支逻辑
+3. 文件上传、下载、发送功能
 """
 import tempfile
+import os
 from pathlib import Path
+from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from io import BytesIO
 
 import pytest
+
+import sys
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 
 class TestDetectAudioExtension:
@@ -257,3 +265,345 @@ class TestVoiceMessageHandling:
 
         assert result is None
         mock_error.assert_called_once()
+
+
+class TestGetSavePath:
+    """测试文件保存路径生成函数"""
+
+    def test_get_save_path_default_dir(self):
+        """测试默认保存目录"""
+        from src.feishu.file_ops import _get_save_path
+
+        file_key = "test_file_key_123"
+        result = _get_save_path(file_key)
+
+        # 验证路径包含 file_key 和时间戳
+        assert file_key in str(result)
+        assert "uploads" in str(result)
+
+    def test_get_save_path_custom_dir(self):
+        """测试自定义保存目录"""
+        from src.feishu.file_ops import _get_save_path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            custom_dir = Path(tmpdir)
+            file_key = "test_key"
+
+            result = _get_save_path(file_key, custom_dir)
+
+            assert custom_dir in result.parents
+            assert file_key in str(result)
+
+    def test_get_save_path_creates_dir(self):
+        """测试自动创建目录"""
+        from src.feishu.file_ops import _get_save_path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            custom_dir = Path(tmpdir) / "subdir" / "nested"
+
+            # 目录不存在时调用函数
+            result = _get_save_path("test_key", custom_dir)
+
+            # 验证目录被创建
+            assert custom_dir.exists()
+
+
+class TestDownloadFile:
+    """测试文件下载功能"""
+
+    @pytest.mark.asyncio
+    async def test_download_file_success(self):
+        """测试成功下载文件"""
+        from src.feishu.file_ops import download_file
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch('src.feishu.file_ops._create_client') as mock_create_client:
+                # 创建模拟响应
+                mock_response = Mock()
+                mock_response.success.return_value = True
+                mock_response.code = 0
+                mock_response.msg = "success"
+                mock_response.get_log_id.return_value = "log_123"
+                mock_response.file_name = "test_file.txt"
+
+                # 创建模拟文件对象
+                mock_file = BytesIO(b"test content")
+                mock_response.file = mock_file
+
+                # 设置客户端 mock
+                mock_client = Mock()
+                mock_client.im.v1.message_resource.get.return_value = mock_response
+                mock_create_client.return_value = mock_client
+
+                result = await download_file(
+                    "test_secret",
+                    "msg_123",
+                    "file_key_123",
+                    Path(tmpdir)
+                )
+
+                assert result is not None
+                assert result.exists()
+
+    @pytest.mark.asyncio
+    async def test_download_file_failure(self):
+        """测试下载文件失败"""
+        from src.feishu.file_ops import download_file
+
+        with patch('src.feishu.file_ops._create_client') as mock_create_client:
+            # 创建失败响应
+            mock_response = Mock()
+            mock_response.success.return_value = False
+            mock_response.code = 400
+            mock_response.msg = "Bad request"
+            mock_response.get_log_id.return_value = "log_123"
+
+            mock_client = Mock()
+            mock_client.im.v1.message_resource.get.return_value = mock_response
+            mock_create_client.return_value = mock_client
+
+            result = await download_file(
+                "test_secret",
+                "msg_123",
+                "file_key_123"
+            )
+
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_download_file_exception(self):
+        """测试下载文件异常"""
+        from src.feishu.file_ops import download_file
+
+        with patch('src.feishu.file_ops._create_client') as mock_create_client:
+            mock_create_client.side_effect = Exception("Connection error")
+
+            result = await download_file(
+                "test_secret",
+                "msg_123",
+                "file_key_123"
+            )
+
+            assert result is None
+
+
+class TestUploadImage:
+    """测试图片上传功能"""
+
+    @pytest.mark.asyncio
+    async def test_upload_image_success(self):
+        """测试成功上传图片"""
+        from src.feishu.file_ops import upload_image
+
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            # 创建一个简单的 PNG 头
+            f.write(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+            f.flush()
+            temp_path = Path(f.name)
+
+        try:
+            with patch('src.feishu.file_ops._create_client') as mock_create_client:
+                # 创建模拟响应
+                mock_response = Mock()
+                mock_response.success.return_value = True
+                mock_response.data = Mock()
+                mock_response.data.image_key = "img_key_123"
+
+                mock_client = Mock()
+                mock_client.im.v1.image.create.return_value = mock_response
+                mock_create_client.return_value = mock_client
+
+                result = await upload_image("test_secret", temp_path)
+
+                assert result == "img_key_123"
+        finally:
+            os.unlink(temp_path)
+
+    @pytest.mark.asyncio
+    async def test_upload_image_failure(self):
+        """测试上传图片失败"""
+        from src.feishu.file_ops import upload_image
+
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            f.write(b"fake image content")
+            f.flush()
+            temp_path = Path(f.name)
+
+        try:
+            with patch('src.feishu.file_ops._create_client') as mock_create_client:
+                mock_response = Mock()
+                mock_response.success.return_value = False
+                mock_response.code = 400
+                mock_response.msg = "Invalid image"
+
+                mock_client = Mock()
+                mock_client.im.v1.image.create.return_value = mock_response
+                mock_create_client.return_value = mock_client
+
+                result = await upload_image("test_secret", temp_path)
+
+                assert result is None
+        finally:
+            os.unlink(temp_path)
+
+    @pytest.mark.asyncio
+    async def test_upload_image_exception(self):
+        """测试上传图片异常"""
+        from src.feishu.file_ops import upload_image
+
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            f.write(b"fake image content")
+            f.flush()
+            temp_path = Path(f.name)
+
+        try:
+            with patch('src.feishu.file_ops._create_client') as mock_create_client:
+                mock_create_client.side_effect = Exception("Network error")
+
+                result = await upload_image("test_secret", temp_path)
+
+                assert result is None
+        finally:
+            os.unlink(temp_path)
+
+
+class TestUploadFile:
+    """测试文件上传功能"""
+
+    @pytest.mark.asyncio
+    async def test_upload_file_success(self):
+        """测试成功上传文件"""
+        from src.feishu.file_ops import upload_file
+
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            f.write(b"test content")
+            f.flush()
+            temp_path = Path(f.name)
+
+        try:
+            with patch('src.feishu.file_ops._create_client') as mock_create_client:
+                mock_response = Mock()
+                mock_response.success.return_value = True
+                mock_response.data = Mock()
+                mock_response.data.file_key = "file_key_123"
+
+                mock_client = Mock()
+                mock_client.im.v1.file.create.return_value = mock_response
+                mock_create_client.return_value = mock_client
+
+                result = await upload_file("test_secret", temp_path)
+
+                assert result == "file_key_123"
+        finally:
+            os.unlink(temp_path)
+
+    @pytest.mark.asyncio
+    async def test_upload_file_failure_raises_error(self):
+        """测试上传文件失败抛出异常"""
+        from src.feishu.file_ops import upload_file
+        from src.feishu.exceptions import FeishuAPIUploadError
+
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            f.write(b"test content")
+            f.flush()
+            temp_path = Path(f.name)
+
+        try:
+            with patch('src.feishu.file_ops._create_client') as mock_create_client:
+                mock_response = Mock()
+                mock_response.success.return_value = False
+                mock_response.code = 400
+                mock_response.msg = "Upload failed"
+
+                mock_client = Mock()
+                mock_client.im.v1.file.create.return_value = mock_response
+                mock_create_client.return_value = mock_client
+
+                with pytest.raises(FeishuAPIUploadError):
+                    await upload_file("test_secret", temp_path)
+        finally:
+            os.unlink(temp_path)
+
+    @pytest.mark.asyncio
+    async def test_upload_file_exception_raises_error(self):
+        """测试上传文件异常抛出异常"""
+        from src.feishu.file_ops import upload_file
+        from src.feishu.exceptions import FeishuAPIUploadError
+
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            f.write(b"test content")
+            f.flush()
+            temp_path = Path(f.name)
+
+        try:
+            with patch('src.feishu.file_ops._create_client') as mock_create_client:
+                mock_create_client.side_effect = Exception("Network error")
+
+                with pytest.raises(FeishuAPIUploadError):
+                    await upload_file("test_secret", temp_path)
+        finally:
+            os.unlink(temp_path)
+
+
+class TestSendFileMessage:
+    """测试发送文件消息功能"""
+
+    @pytest.mark.asyncio
+    async def test_send_file_message_success(self):
+        """测试成功发送文件消息"""
+        from src.feishu.file_ops import send_file_message
+
+        with patch('src.feishu.file_ops._create_client') as mock_create_client:
+            mock_response = Mock()
+            mock_response.success.return_value = True
+
+            mock_client = Mock()
+            mock_client.im.v1.message.create.return_value = mock_response
+            mock_create_client.return_value = mock_client
+
+            result = await send_file_message(
+                "test_secret",
+                "user_123",
+                "file_key_123"
+            )
+
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_send_file_message_failure(self):
+        """测试发送文件消息失败"""
+        from src.feishu.file_ops import send_file_message
+
+        with patch('src.feishu.file_ops._create_client') as mock_create_client:
+            mock_response = Mock()
+            mock_response.success.return_value = False
+            mock_response.code = 400
+            mock_response.msg = "Send failed"
+
+            mock_client = Mock()
+            mock_client.im.v1.message.create.return_value = mock_response
+            mock_create_client.return_value = mock_client
+
+            result = await send_file_message(
+                "test_secret",
+                "user_123",
+                "file_key_123"
+            )
+
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_send_file_message_exception(self):
+        """测试发送文件消息异常"""
+        from src.feishu.file_ops import send_file_message
+
+        with patch('src.feishu.file_ops._create_client') as mock_create_client:
+            mock_create_client.side_effect = Exception("Network error")
+
+            result = await send_file_message(
+                "test_secret",
+                "user_123",
+                "file_key_123"
+            )
+
+            assert result is False

@@ -332,3 +332,5 @@ class TestEdgeCases:
                     # 当前代码不捕获 PermissionError，会抛出异常
                     with pytest.raises(PermissionError):
                         manager.find_running_session()
+
+
