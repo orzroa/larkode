@@ -30,7 +30,40 @@ Integrate Feishu (Lark) with AI assistants via WebSocket long connections. The s
 | Node.js | 18+ | For Claude Code CLI |
 | tmux | Latest | For Session management |
 
-### 2.2 Installation Steps
+### 2.2 Create Feishu App
+
+**Step 1: Go to Feishu Open Platform**
+
+Visit [Feishu Open Platform](https://open.feishu.cn/), login and click "Create Enterprise Custom App".
+
+**Step 2: Configure App Info**
+
+- App Name: Custom (e.g., "AI Assistant")
+- App Description: Custom
+- App Icon: Upload an icon
+
+**Step 3: Get App Credentials**
+
+After creation, get from "Credentials & Basic Info" page:
+- `App ID`
+- `App Secret`
+
+**Step 4: Configure App Permissions**
+
+On "Permission Management" page, request these permissions:
+
+| Permission | Description |
+|------------|-------------|
+| `im:message:readonly` | Get single chat, group messages |
+| `im:message.p2p_msg:readonly` | Read single chat messages sent by users to bot |
+| `im:message:send_as_bot` | Send messages as app |
+| `im:resource` | Get and upload image or file resources |
+
+**Step 5: Publish App**
+
+On "Version Management & Release" page, create a version and publish. Wait for approval.
+
+### 2.3 Install Project
 
 **Step 1: Install uv (Python package manager)**
 
@@ -62,31 +95,67 @@ npm install -g @anthropic-ai/claude-code
 
 ```bash
 cp .env.example .env
-# Edit .env with your Feishu app credentials
 ```
 
-Main configuration items:
+Edit `.env` file with your Feishu app credentials:
 
 ```env
-# Feishu app credentials
+# Feishu app credentials (required)
 FEISHU_APP_ID=cli_xxxxx
 FEISHU_APP_SECRET=xxxxx
 
-# AI assistant configuration
-AI_ASSISTANT_TYPE=claude_code  # or iflow
+# AI assistant configuration (required)
+AI_ASSISTANT_TYPE=claude_code
 CLAUDE_CODE_WORKSPACE_DIR=/path/to/workspace
 ```
 
-**Step 4: Configure Claude Code Hook (optional, for AI proactive notifications)**
+**Step 4: Configure AI proactive notifications (optional)**
 
-See [3.3 Configure Hook Notifications](#33-configure-hook-notifications-optional)
+Once configured, AI will proactively notify you when tasks complete or confirmation is needed.
+
+4.1 Get your Feishu user ID:
+
+1. Open the conversation with the bot in Feishu
+2. Click "..." in top right → click your avatar
+3. Click "Copy Member ID" (open_id, format like `ou_xxxxx`)
+
+4.2 Configure environment variable:
+
+```bash
+# Add to .env file
+FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
+```
+
+4.3 Configure Claude Code settings:
+
+Edit `~/.claude/settings.json`, add hooks configuration:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [{ "type": "command", "command": "uv run --no-project /your/path/larkode/src/hook_handler.py", "timeout": 5 }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "uv run --no-project /your/path/larkode/src/hook_handler.py", "timeout": 5 }]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [{ "type": "command", "command": "uv run --no-project /your/path/larkode/src/hook_handler.py", "timeout": 5 }]
+      }
+    ]
+  }
+}
+```
 
 **Step 5: Start the service**
 
 ```bash
 ./start.sh
-# Or run directly
-uv run python main.py
 ```
 
 ---
@@ -97,70 +166,31 @@ uv run python main.py
 
 | Command | Description |
 |---------|-------------|
-| Any command | Execute AI assistant command |
-| #help | Show help |
-| #cancel | Cancel current execution |
-| #history | View message history |
-| #shot | View tmux screenshot |
-| #model | View or switch model |
+| `any text` or `/command` | Execute Claude Code command |
+| `#help` | Show help |
+| `#cancel` | Cancel current execution |
+| `#history [count]` | View message history (default 10) |
+| `#shot [lines]` | View screenshot (default 200, e.g., `#shot 500`) |
+| `#model [index]` | View or switch model (no arg shows list) |
 
-### 3.2 Feishu App Configuration
+### 3.2 Usage Examples
 
-**Required permissions (4):**
-
-| Permission | Description |
-|------------|-------------|
-| `im:message:readonly` | Get single chat, group messages |
-| `im:message.p2p_msg:readonly` | Read single chat messages sent by users to bot |
-| `im:message:send_as_bot` | Send messages as app |
-| `im:resource` | Get and upload image or file resources |
-
-**Permission Application Location:** Feishu Open Platform → App Details → Permission Management
-
-### 3.3 Configure Hook Notifications (Optional)
-
-Once configured, AI will proactively notify you when tasks complete or confirmation is needed.
-
-**Step 1: Get your Feishu user ID**
-
-1. Open the conversation with the bot in Feishu
-2. Right-click your avatar
-3. Select "Copy Member ID" (open_id)
-
-**Step 2: Configure environment variables**
-
-```bash
-# Add to .env file
-FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
 ```
+User: Help me write a bubble sort
+AI: [Executes and returns result]
 
-**Step 3: Configure Claude Code settings**
+User: #model
+AI: [Shows available model list]
 
-Edit `~/.claude/settings.json`, add hooks configuration:
+User: #model 1
+AI: [Switches to model 1]
 
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [{ "type": "command", "command": "uv run --no-project /path/to/larkode/src/hook_handler.py", "timeout": 5 }]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [{ "type": "command", "command": "uv run --no-project /path/to/larkode/src/hook_handler.py", "timeout": 5 }]
-      }
-    ],
-    "PermissionRequest": [
-      {
-        "hooks": [{ "type": "command", "command": "uv run --no-project /path/to/larkode/src/hook_handler.py", "timeout": 5 }]
-      }
-    ]
-  }
-}
+User: #history 20
+AI: [Shows last 20 messages]
+
+User: #shot 500
+AI: [Shows last 500 lines screenshot]
 ```
-
-**Step 4: Restart Claude Code service**
 
 ---
 
@@ -199,7 +229,7 @@ larkode/
 ├── data/                    # SQLite database
 ├── logs/                    # Log files
 ├── docs/                    # Documentation
-├── main.py                  # Entry point
+├── larkode.py               # Entry point
 └── start.sh                 # Startup script
 ```
 
@@ -236,6 +266,12 @@ Configure via `AI_ASSISTANT_TYPE` environment variable:
 1. Check if `.env` configuration is correct
 2. Confirm Feishu app credentials are valid
 3. View logs: `tail -f logs/app.log`
+
+**Q: Not receiving messages?**
+
+1. Confirm Feishu app is published and approved
+2. Confirm app permissions are configured correctly
+3. Check if service is running normally
 
 ---
 

@@ -30,7 +30,40 @@
 | Node.js | 18+ | 用于 Claude Code CLI |
 | tmux | 最新版 | 用于 Session 管理 |
 
-### 2.2 安装步骤
+### 2.2 创建飞书应用
+
+**步骤 1：进入飞书开放平台**
+
+访问 [飞书开放平台](https://open.feishu.cn/)，登录后点击「创建企业自建应用」。
+
+**步骤 2：配置应用信息**
+
+- 应用名称：自定义（如「AI 助手」）
+- 应用描述：自定义
+- 应用图标：上传一个图标
+
+**步骤 3：获取应用凭据**
+
+创建完成后，在「凭证与基础信息」页面获取：
+- `App ID`
+- `App Secret`
+
+**步骤 4：配置应用权限**
+
+在「权限管理」页面，申请以下权限：
+
+| 权限 | 说明 |
+|------|------|
+| `im:message:readonly` | 获取单聊、群组消息 |
+| `im:message.p2p_msg:readonly` | 读取用户发给机器人的单聊消息 |
+| `im:message:send_as_bot` | 以应用的身份发消息 |
+| `im:resource` | 获取与上传图片或文件资源 |
+
+**步骤 5：发布应用**
+
+在「版本管理与发布」页面创建版本并发布，等待审核通过。
+
+### 2.3 安装项目
 
 **第 1 步：安装 uv（Python 包管理器）**
 
@@ -62,31 +95,67 @@ npm install -g @anthropic-ai/claude-code
 
 ```bash
 cp .env.example .env
-# 编辑 .env 填入飞书应用凭据
 ```
 
-主要配置项：
+编辑 `.env` 文件，填入飞书应用凭据：
 
 ```env
-# 飞书应用凭据
+# 飞书应用凭据（必填）
 FEISHU_APP_ID=cli_xxxxx
 FEISHU_APP_SECRET=xxxxx
 
-# AI 助手配置
-AI_ASSISTANT_TYPE=claude_code  # 或 iflow
+# AI 助手配置（必填）
+AI_ASSISTANT_TYPE=claude_code
 CLAUDE_CODE_WORKSPACE_DIR=/path/to/workspace
 ```
 
-**第 4 步：配置 Claude Code Hook（可选，用于 AI 主动通知）**
+**第 4 步：配置 AI 主动通知（可选）**
 
-详见 [3.3 配置 Hook 通知](#33-配置-hook-通知可选)
+配置后，AI 完成任务或需要确认时会主动通知你。
+
+4.1 获取你的飞书用户 ID：
+
+1. 在飞书中打开与机器人的对话
+2. 点击右上角「...」→ 点击自己的头像
+3. 点击「复制成员 ID」（即 open_id，格式如 `ou_xxxxx`）
+
+4.2 配置环境变量：
+
+```bash
+# 在 .env 文件中添加
+FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
+```
+
+4.3 配置 Claude Code 设置：
+
+编辑 `~/.claude/settings.json`，添加 hooks 配置：
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [{ "type": "command", "command": "uv run --no-project /你的路径/larkode/src/hook_handler.py", "timeout": 5 }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "uv run --no-project /你的路径/larkode/src/hook_handler.py", "timeout": 5 }]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [{ "type": "command", "command": "uv run --no-project /你的路径/larkode/src/hook_handler.py", "timeout": 5 }]
+      }
+    ]
+  }
+}
+```
 
 **第 5 步：启动服务**
 
 ```bash
 ./start.sh
-# 或直接运行
-uv run python main.py
 ```
 
 ---
@@ -97,70 +166,31 @@ uv run python main.py
 
 | 命令 | 说明 |
 |------|------|
-| 任意命令 | 执行 AI 助手命令 |
-| #help | 显示帮助 |
-| #cancel | 取消当前运行 |
-| #history | 查看历史消息 |
-| #shot | 查看 tmux 截屏 |
-| #model | 查看或切换模型 |
+| `任意内容` 或 `/命令` | 执行 Claude Code 命令 |
+| `#help` | 显示帮助信息 |
+| `#cancel` | 取消当前运行 |
+| `#history [数量]` | 查看历史消息（默认10条） |
+| `#shot [行数]` | 查看截屏（默认200行，如 `#shot 500`） |
+| `#model [序号]` | 查看或切换模型（无参数显示列表） |
 
-### 3.2 飞书应用配置
+### 3.2 使用示例
 
-**需要申请的权限（4个）：**
-
-| 权限 | 说明 |
-|------|------|
-| `im:message:readonly` | 获取单聊、群组消息 |
-| `im:message.p2p_msg:readonly` | 读取用户发给机器人的单聊消息 |
-| `im:message:send_as_bot` | 以应用的身份发消息 |
-| `im:resource` | 获取与上传图片或文件资源 |
-
-**权限申请位置：** 飞书开放平台 → 应用详情 → 权限管理
-
-### 3.3 配置 Hook 通知（可选）
-
-配置后，AI 完成任务或需要确认时会主动通知你。
-
-**步骤 1：获取你的飞书用户 ID**
-
-1. 在飞书中打开与机器人的对话
-2. 右键点击自己的头像
-3. 选择"复制成员 ID"（open_id）
-
-**步骤 2：配置环境变量**
-
-```bash
-# 在 .env 文件中添加
-FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
 ```
+用户: 帮我写一个冒泡排序
+AI: [执行并返回结果]
 
-**步骤 3：配置 Claude Code 设置**
+用户: #model
+AI: [显示可用模型列表]
 
-编辑 `~/.claude/settings.json`，添加 hooks 配置：
+用户: #model 1
+AI: [切换到模型1]
 
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [{ "type": "command", "command": "uv run --no-project /path/to/larkode/src/hook_handler.py", "timeout": 5 }]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [{ "type": "command", "command": "uv run --no-project /path/to/larkode/src/hook_handler.py", "timeout": 5 }]
-      }
-    ],
-    "PermissionRequest": [
-      {
-        "hooks": [{ "type": "command", "command": "uv run --no-project /path/to/larkode/src/hook_handler.py", "timeout": 5 }]
-      }
-    ]
-  }
-}
+用户: #history 20
+AI: [显示最近20条历史消息]
+
+用户: #shot 500
+AI: [显示最近500行的截屏]
 ```
-
-**步骤 4：重启 Claude Code 服务**
 
 ---
 
@@ -199,7 +229,7 @@ larkode/
 ├── data/                    # SQLite 数据库
 ├── logs/                    # 日志文件
 ├── docs/                    # 文档
-├── main.py                  # 入口
+├── larkode.py               # 入口
 └── start.sh                 # 启动脚本
 ```
 
@@ -236,6 +266,12 @@ uv run pytest tests/ -v --ignore=tests/integration/
 1. 检查 `.env` 配置是否正确
 2. 确认飞书应用凭据有效
 3. 查看日志：`tail -f logs/app.log`
+
+**Q: 收不到消息？**
+
+1. 确认飞书应用已发布并审核通过
+2. 确认应用权限配置正确
+3. 检查服务是否正常运行
 
 ---
 
