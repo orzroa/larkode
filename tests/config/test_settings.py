@@ -127,3 +127,44 @@ class TestSettingsMethods:
         settings.init_directories()
 
 
+class TestEnvExpansion:
+    """测试环境变量展开"""
+
+    def test_expand_home_variable_from_env(self, monkeypatch):
+        """测试从环境变量加载时展开 $HOME"""
+        monkeypatch.setenv('HOME', '/home/testuser')
+        monkeypatch.setenv('WORKSPACE_ROOT_DIR', '$HOME/Workspaces')
+        monkeypatch.setenv('WORKSPACE_DEFAULT_DIR', '$HOME/Workspaces/larkode')
+
+        # 重新加载设置
+        from src.config.settings import reload_settings
+        settings = reload_settings()
+
+        assert str(settings.workspace_root_dir) == "/home/testuser/Workspaces"
+        assert str(settings.workspace_default_dir) == "/home/testuser/Workspaces/larkode"
+
+    def test_expand_tilde_from_env(self, monkeypatch):
+        """测试从环境变量加载时展开 ~"""
+        monkeypatch.setenv('HOME', '/home/testuser')
+        monkeypatch.setenv('WORKSPACE_ROOT_DIR', '~/Workspaces')
+        monkeypatch.setenv('WORKSPACE_DEFAULT_DIR', '~/Workspaces/larkode')
+
+        from src.config.settings import reload_settings
+        settings = reload_settings()
+
+        assert str(settings.workspace_root_dir) == "/home/testuser/Workspaces"
+        assert str(settings.workspace_default_dir) == "/home/testuser/Workspaces/larkode"
+
+    def test_expand_custom_env_var_from_env(self, monkeypatch):
+        """测试从环境变量加载时展开自定义环境变量"""
+        monkeypatch.setenv('MY_WORKSPACE', '/custom/workspace')
+        monkeypatch.setenv('WORKSPACE_ROOT_DIR', '$MY_WORKSPACE')
+        monkeypatch.setenv('WORKSPACE_DEFAULT_DIR', '${MY_WORKSPACE}/larkode')
+
+        from src.config.settings import reload_settings
+        settings = reload_settings()
+
+        assert str(settings.workspace_root_dir) == "/custom/workspace"
+        assert str(settings.workspace_default_dir) == "/custom/workspace/larkode"
+
+

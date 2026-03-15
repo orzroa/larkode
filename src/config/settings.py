@@ -6,7 +6,7 @@ Pydantic Settings 配置管理
 import os
 from pathlib import Path
 from typing import Any, List, Optional
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -145,6 +145,25 @@ class Settings(BaseSettings):
     streaming_timeout: int = Field(default=3600, description="流式输出超时时间（秒），可通过 STREAMING_TIMEOUT 环境变量配置")
     streaming_stable_threshold: int = Field(default=2, description="输出稳定阈值（连续多少次不变认为完成）")
     streaming_capture_lines: int = Field(default=10, description="流式输出时抓取 tmux 的行数")
+
+    # ==================== Validators ====================
+
+    @field_validator('workspace_root_dir', 'workspace_default_dir', mode='before')
+    @classmethod
+    def expand_env_vars(cls, v: Any) -> Path:
+        """展开路径中的环境变量"""
+        if isinstance(v, str):
+            # 展开环境变量，如 $HOME 或 ${HOME}
+            expanded = os.path.expandvars(v)
+            # 展开 ~ 为用户主目录
+            expanded = os.path.expanduser(expanded)
+            return Path(expanded)
+        elif isinstance(v, Path):
+            # 如果已经是 Path，先转为字符串再展开
+            expanded = os.path.expandvars(str(v))
+            expanded = os.path.expanduser(expanded)
+            return Path(expanded)
+        return v
 
     # ==================== 方法 ====================
 
