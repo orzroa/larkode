@@ -33,18 +33,27 @@ class TmuxAIExecutor:
     """
     通过 tmux 发送命令到 AI session
     保持完整的上下文和对话历史
+
+    特性：
+    - 动态获取当前工作空间，支持工作空间切换
+    - 自动重启崩溃的 AI 进程
+    - 支持流式输出和传统输出模式
     """
 
-    TMUX_SESSION_NAME = "cc"
-
     def __init__(self, workspace: Optional[Path] = None):
-        # 初始化会话管理器
-        self._session_manager = TmuxSessionManager(workspace)
+        """
+        初始化执行器
 
-        # 暴露 workspace 属性（兼容旧代码）
-        self.workspace = self._session_manager.workspace
+        Args:
+            workspace: 工作空间路径（可选，不提供则动态获取当前工作空间）
+        """
+        # 不在初始化时固定 workspace，而是动态获取
+        self._initial_workspace = workspace
 
-        # 自动重启配置（保持直接属性访问，兼容测试）
+        # 初始化会话管理器（延迟初始化，在执行时才创建）
+        self._session_manager: Optional[TmuxSessionManager] = None
+
+        # 自动重启配置
         self._auto_restart_enabled = get_settings().AI_AUTO_RESTART_ENABLED
         self._max_restart_attempts = get_settings().AI_MAX_RESTART_ATTEMPTS
         self._restart_delay = get_settings().AI_RESTART_DELAY
@@ -53,28 +62,76 @@ class TmuxAIExecutor:
         self._formatted_results: dict = {}
         self._did_restart_ai = False
 
+    def _get_current_workspace(self) -> Path:
+        """
+        获取当前工作空间路径
+
+        总是动态获取当前工作空间，忽略初始化时传入的 workspace
+
+        Returns:
+            Path: 工作空间路径
+        """
+        # 优先从 WorkspaceManager 动态获取当前工作空间
+        try:
+            from src.workspace_manager import get_workspace_manager
+            workspace_manager = get_workspace_manager()
+            current_workspace = workspace_manager.get_current_workspace()
+            if current_workspace:
+                logger.info(f"从 WorkspaceManager 获取到当前工作空间: {current_workspace}")
+                return Path(current_workspace)
+            else:
+                logger.warning("WorkspaceManager 返回空的工作空间")
+        except Exception as e:
+            # 获取失败时记录错误（测试环境可能没有 WorkspaceManager）
+            logger.error(f"从 WorkspaceManager 获取工作空间失败: {e}", exc_info=True)
+
+        # Fallback: 如果动态获取失败，使用初始化时传入的 workspace
+        if self._initial_workspace:
+            logger.warning(f"使用初始化时的工作空间作为 fallback: {self._initial_workspace}")
+            return self._initial_workspace
+
+        # Final fallback: 当前工作目录
+        logger.warning(f"使用当前工作目录作为 fallback: {Path.cwd()}")
+        return Path.cwd()
+
+    def _get_session_manager(self) -> TmuxSessionManager:
+        """
+        获取当前工作空间对应的 session 管理器
+
+        Returns:
+            TmuxSessionManager: session 管理器实例
+        """
+        current_workspace = self._get_current_workspace()
+        return TmuxSessionManager(workspace=current_workspace)
+
+    @property
+    def workspace(self) -> Path:
+        """工作空间属性（兼容旧代码）"""
+        return self._get_current_workspace()
+
     def _check_tmux_session(self) -> bool:
-        return self._session_manager._check_tmux_session()
+        return self._get_session_manager()._check_tmux_session()
 
     def _check_ai_running_in_session(self) -> bool:
-        return self._session_manager._check_ai_running_in_session()
+        return self._get_session_manager()._check_ai_running_in_session()
 
     def _create_tmux_session(self) -> bool:
-        return self._session_manager._create_tmux_session()
+        return self._get_session_manager()._create_tmux_session()
 
     def _ensure_tmux_session(self) -> tuple[bool, bool]:
-        return self._session_manager._ensure_tmux_session()
+        return self._get_session_manager()._ensure_tmux_session()
 
     def _start_ai_in_existing_session(self) -> bool:
-        return self._session_manager._start_ai_in_existing_session()
+        return self._get_session_manager()._start_ai_in_existing_session()
 
     def _check_ai_process_health(self) -> bool:
         """检查 AI 进程健康状态"""
-        if not self._check_tmux_session():
-            logger.warning(f"tmux session '{self._session_manager._tmux_session}' 不存在")
+        session_manager = self._get_session_manager()
+        if not session_manager._check_tmux_session():
+            logger.warning(f"tmux session '{session_manager._tmux_session}' 不存在")
             return False
-        if not self._check_ai_running_in_session():
-            logger.warning(f"AI 进程在 tmux session '{self._session_manager._tmux_session}' 中未运行")
+        if not session_manager._check_ai_running_in_session():
+            logger.warning(f"AI 进程在 tmux session '{session_manager._tmux_session}' 中未运行")
             return False
         return True
 
@@ -124,7 +181,7 @@ class TmuxAIExecutor:
 
         Args:
             command: 要执行的命令
-            workspace: 工作目录
+            workspace: 工作目录（可选，不提供则使用当前工作空间）
             streaming: 是否启用流式输出
             streaming_manager: 流式输出管理器 (StreamingOutputManager)
             user_id: 用户 ID（流式输出需要）
@@ -132,11 +189,21 @@ class TmuxAIExecutor:
         Yields:
             str: 命令输出
         """
+        # 使用指定的 workspace 或当前工作空间
         work_dir = workspace or self.workspace
-
         if not work_dir or not work_dir.exists():
             yield f"错误: 工作目录不存在: {work_dir}"
             return
+
+        # 获取当前工作空间对应的 session 管理器
+        session_manager = TmuxSessionManager(workspace=work_dir)
+
+        # 打印关键信息
+        logger.info(f"========== 命令执行信息 ==========")
+        logger.info(f"命令: {command}")
+        logger.info(f"工作空间: {work_dir}")
+        logger.info(f"Session 名称: {session_manager._tmux_session}")
+        logger.info(f"==================================")
 
         logger.info(f"开始 tmux 执行命令: {command}")
 
@@ -148,7 +215,7 @@ class TmuxAIExecutor:
                 # 确保 session 存在
                 just_started = False
                 if self._auto_restart_enabled:
-                    success, just_started = self._session_manager._ensure_tmux_session()
+                    success, just_started = session_manager._ensure_tmux_session()
                     if not success:
                         yield "错误: 无法创建 tmux session"
                         return
@@ -168,14 +235,14 @@ class TmuxAIExecutor:
 
                 if card_id:
                     # 发送命令
-                    async for output in self._session_manager.send_command(command, skip_ensure=True):
+                    async for output in session_manager.send_command(command, skip_ensure=True):
                         # 不 yield 输出，因为会通过卡片实时显示
                         pass
 
                     # 创建监控任务
                     async def run_monitor():
                         try:
-                            final_output = await self._session_manager.monitor_output(
+                            final_output = await session_manager.monitor_output(
                                 callback=lambda content, is_last: asyncio.create_task(
                                     streaming_manager.finish_streaming(card_id, content)
                                 ) if is_last else asyncio.create_task(
@@ -209,7 +276,7 @@ class TmuxAIExecutor:
                 else:
                     # 卡片创建失败，降级到传统模式
                     logger.warning("卡片创建失败，降级到传统模式")
-                    async for output in self._session_manager.send_command(command, skip_ensure=True):
+                    async for output in session_manager.send_command(command, skip_ensure=True):
                         yield output
 
             except Exception as e:
@@ -223,7 +290,7 @@ class TmuxAIExecutor:
                 # 检查是否需要重启 AI（执行前），并获取是否刚刚启动了 AI
                 just_started = False
                 if self._auto_restart_enabled:
-                    success, just_started = self._session_manager._ensure_tmux_session()
+                    success, just_started = session_manager._ensure_tmux_session()
                     if not success:
                         yield "错误: 无法创建 tmux session"
                         return
@@ -234,7 +301,7 @@ class TmuxAIExecutor:
                         logger.info("  → 等待 AI 初始化...")
                         time.sleep(5)
 
-                async for output in self._session_manager.send_command(command, skip_ensure=True):
+                async for output in session_manager.send_command(command, skip_ensure=True):
                     output_lines.append(output)
                     yield output
 

@@ -44,23 +44,16 @@ def create_event_handlers(interaction_manager: "InteractionManager", feishu_api_
         try:
             logger.info(f"收到消息事件")
 
-            # 将 event 对象转换为 JSON 打印出来
+            # 不打印完整的消息内容，避免刷屏
+            # 只记录关键字段
             try:
-                # 尝试获取原始数据字典
-                if hasattr(data, '__dict__'):
-                    event_dict = data.__dict__
-                    logger.info(f"原始事件数据 (JSON): {json.dumps(event_dict, ensure_ascii=False, default=str)}")
-
-                # 打印 event_obj 的详细属性
                 event_obj = data.event
-                if hasattr(event_obj, '__dict__'):
-                    logger.info(f"event_obj (JSON): {json.dumps(event_obj.__dict__, ensure_ascii=False, default=str)}")
-                if hasattr(event_obj.sender, '__dict__'):
-                    logger.info(f"sender (JSON): {json.dumps(event_obj.sender.__dict__, ensure_ascii=False, default=str)}")
-                if hasattr(event_obj.message, '__dict__'):
-                    logger.info(f"message (JSON): {json.dumps(event_obj.message.__dict__, ensure_ascii=False, default=str)}")
+                if hasattr(event_obj, 'message') and hasattr(event_obj.message, 'message_id'):
+                    logger.info(f"消息ID: {event_obj.message.message_id}")
+                if hasattr(event_obj, 'sender') and hasattr(event_obj.sender, 'sender_id'):
+                    logger.info(f"发送者ID: {event_obj.sender.sender_id}")
             except Exception as e:
-                logger.info(f"无法转换事件为 JSON: {e}")
+                logger.debug(f"无法提取消息关键信息: {e}")
 
             # data 是 P2ImMessageReceiveV1 对象
             event_obj = data.event

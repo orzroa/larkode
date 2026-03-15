@@ -5,9 +5,14 @@ import pytest
 import os
 import sys
 import time
+import logging
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, call
 import subprocess
+
+# Setup logging for debug
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # 添加项目根目录到路径
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -61,42 +66,52 @@ class TestAIAutoRestart:
     @patch('src.ai_executor.tmux_session.TmuxSessionManager._log_debug_info')
     @patch('src.ai_executor.subprocess.run')
     @patch('src.ai_executor.psutil.Process')
-    def test_check_ai_process_health_healthy(self, mock_process, mock_subprocess_run, mock_log):
+    @patch('src.workspace_manager.get_workspace_manager')
+    def test_check_ai_process_health_healthy(self, mock_get_workspace_manager, mock_process, mock_subprocess_run, mock_log):
         """测试1：健康检查返回 True 当进程运行时"""
         from src.ai_executor import TmuxClaudeCodeExecutor
 
-        # 模拟 tmux 相关命令
-        def mock_run_side_effect(*args, **kwargs):
-            result = MagicMock()
-            if "list-sessions" in args[0]:
-                result.stdout = "cc: 1 windows"
-            elif "list-panes" in args[0]:
-                result.stdout = "12345\n"
-                result.returncode = 0
-            else:
-                result.returncode = 0
-            return result
+        # Mock WorkspaceManager to return test workspace
+        mock_workspace_manager = MagicMock()
+        mock_workspace_manager.get_current_workspace.return_value = "/test/workspace"
+        mock_get_workspace_manager.return_value = mock_workspace_manager
 
-        mock_subprocess_run.side_effect = mock_run_side_effect
+        # Mock TMUX 环境变量，避免检测到真实的 tmux session
+        with patch.dict('os.environ', {'TMUX': ''}):
+            # 模拟 tmux 相关命令
+            def mock_run_side_effect(*args, **kwargs):
+                result = MagicMock()
+                if "list-sessions" in args[0]:
+                    # 返回测试 session 名称
+                    result.stdout = "cc-test-workspace: 1 windows"
+                elif "list-panes" in args[0]:
+                    result.stdout = "12345\n"
+                    result.returncode = 0
+                else:
+                    result.returncode = 0
+                return result
 
-        # 模拟 psutil.Process 返回父进程，且 children 返回子进程列表
-        mock_parent = MagicMock()
-        mock_child = MagicMock()
-        # 使用新的 psutil API：方法而非 .info 属性
-        mock_child.name.return_value = 'claude'
-        mock_child.pid = 12346
-        mock_child.cmdline.return_value = ['claude']
-        mock_parent.children.return_value = [mock_child]
-        mock_process.return_value = mock_parent
+            mock_subprocess_run.side_effect = mock_run_side_effect
 
-        # 创建 executor
-        executor = TmuxClaudeCodeExecutor()
+            # 模拟 psutil.Process 返回父进程，且 children 返回子进程列表
+            mock_parent = MagicMock()
+            mock_child = MagicMock()
+            # 使用新的 psutil API：方法而非 .info 属性
+            mock_child.name.return_value = 'claude'
+            mock_child.pid = 12346
+            mock_child.cmdline.return_value = ['claude']
+            mock_parent.children.return_value = [mock_child]
+            mock_process.return_value = mock_parent
 
-        # 检查健康状态
-        is_healthy = executor._check_ai_process_health()
+            # 创建 executor（传入测试工作空间）
+            test_workspace = Path("/test/workspace")
+            executor = TmuxClaudeCodeExecutor(test_workspace)
 
-        # 验证返回 True
-        assert is_healthy, "健康检查应该返回 True 当进程运行时"
+            # 检查健康状态
+            is_healthy = executor._check_ai_process_health()
+
+            # 验证返回 True
+            assert is_healthy, "健康检查应该返回 True 当进程运行时"
 
     @patch('src.ai_executor.subprocess.run')
     @patch('src.ai_executor.psutil.Process')
@@ -233,45 +248,65 @@ class TestAIAutoRestart:
 
     @patch('src.ai_executor.tmux_session.TmuxSessionManager._log_debug_info')
     @patch('src.ai_executor.subprocess.run')
-    def test_execute_command_calls_monitor_before_execution(self, mock_subprocess_run, mock_log):
+    @patch('src.workspace_manager.get_workspace_manager')
+    def test_execute_command_calls_monitor_before_execution(self, mock_get_workspace_manager, mock_subprocess_run, mock_log):
         """测试6：execute_command 在执行前调用监控"""
         from src.ai_executor import TmuxClaudeCodeExecutor
         import asyncio
 
-        # 模拟 tmux 相关命令
-        def mock_run_side_effect(*args, **kwargs):
-            result = MagicMock()
-            if "list-sessions" in args[0]:
-                result.stdout = "cc: 1 windows"
-            elif "list-panes" in args[0]:
-                result.stdout = "12345\n"
-                result.returncode = 0
-            elif "capture-pane" in args[0]:
-                result.stdout = "test output"
-                result.returncode = 0
-            else:
-                result.returncode = 0
-            return result
+        # Mock WorkspaceManager to return test workspace
+        mock_workspace_manager = MagicMock()
+        mock_workspace_manager.get_current_workspace.return_value = "/test/workspace"
+        mock_get_workspace_manager.return_value = mock_workspace_manager
 
-        mock_subprocess_run.side_effect = mock_run_side_effect
+        # Mock TMUX 环境变量
+        with patch.dict('os.environ', {'TMUX': ''}):
+            # 模拟 tmux 相关命令
+            def mock_run_side_effect(*args, **kwargs):
+                result = MagicMock()
+                if "list-sessions" in args[0]:
+                    result.stdout = "cc-test-workspace: 1 windows"
+                elif "list-panes" in args[0]:
+                    result.stdout = "12345\n"
+                    result.returncode = 0
+                elif "capture-pane" in args[0]:
+                    result.stdout = "test output"
+                    result.returncode = 0
+                else:
+                    result.returncode = 0
+                return result
 
-        # 创建 executor
-        executor = TmuxClaudeCodeExecutor()
+            mock_subprocess_run.side_effect = mock_run_side_effect
 
-        # 模拟 _ensure_tmux_session 返回 (True, False)（不需要重启）
-        with patch.object(executor._session_manager, '_ensure_tmux_session', return_value=(True, False)) as mock_ensure:
-            # 模拟 send_command 不 yield 任何内容
-            with patch.object(executor._session_manager, 'send_command', return_value=iter([])):
-                # 模拟 asyncio.sleep
-                with patch('src.ai_executor.time.sleep'):
-                    # 执行命令（不再需要 task_id 参数）
-                    async def run_test():
-                        outputs = []
-                        async for output in executor.execute_command("test command"):
-                            outputs.append(output)
-                        return outputs
+            # 创建 executor（传入测试工作空间）
+            test_workspace = Path("/test/workspace")
+            executor = TmuxClaudeCodeExecutor(test_workspace)
 
-                    asyncio.run(run_test())
+            # Ensure auto_restart is enabled
+            assert executor._auto_restart_enabled, "Auto restart should be enabled for this test"
 
-                    # 验证 _ensure_tmux_session 被调用
-                    mock_ensure.assert_called_once()
+            # Mock Path.exists() to return True for test workspace
+            with patch('pathlib.Path.exists', return_value=True):
+                # Create an async generator for send_command
+                async def mock_send_command(*args, **kwargs):
+                    yield ""
+
+                # Mock TmuxSessionManager methods
+                with patch('src.ai_executor.tmux_session.TmuxSessionManager._ensure_tmux_session', return_value=(True, False)) as mock_ensure:
+                    with patch('src.ai_executor.tmux_session.TmuxSessionManager.send_command', side_effect=mock_send_command):
+                        # 模拟 time.sleep
+                        with patch('src.ai_executor.time.sleep'):
+                            # 执行命令
+                            async def run_test():
+                                outputs = []
+                                async for output in executor.execute_command("test command"):
+                                    outputs.append(output)
+                                return outputs
+
+                            result = asyncio.run(run_test())
+                            print(f"[DEBUG] Test completed with result: {result}")
+
+                        # 验证 _ensure_tmux_session 被调用
+                        print(f"[DEBUG] mock_ensure called: {mock_ensure.called}")
+                        print(f"[DEBUG] mock_ensure call count: {mock_ensure.call_count}")
+                        mock_ensure.assert_called_once()

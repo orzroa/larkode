@@ -345,38 +345,6 @@ def _build_permission_content(tool_name: str, tool_input: dict) -> str:
         tmux_output = get_tmux_last_lines(50)
         return f"屏幕内容:\n\n```\n{tmux_output}\n```"
 
-
-def send_escape_to_tmux() -> bool:
-    """发送 ESC 到 tmux session，取消 AI 等待状态
-
-    Returns:
-        bool: 是否发送成功
-    """
-    # 测试模式下跳过，避免中断测试进程
-    if os.getenv("SKIP_TMUX_ESCAPE") or os.getenv("PYTEST_CURRENT_TEST"):
-        logger.info("测试模式：跳过发送 ESC 到 tmux")
-        return True
-
-    import subprocess
-    from src.config.settings import Config, get_settings
-
-    session_name = get_settings().TMUX_SESSION_NAME or "cc"
-    try:
-        subprocess.run(
-            ["tmux", "send-keys", "-t", f"{session_name}", "Escape"],
-            check=True,
-            capture_output=True
-        )
-        logger.info(f"已发送 ESC 到 tmux session: {session_name}")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"发送 ESC 失败: {e}")
-        return False
-    except FileNotFoundError:
-        logger.warning("tmux 命令未找到")
-        return False
-
-
 async def handle_event(handler: IHookHandler, context: HookContext, data: dict):
     """处理 Hook 事件
 
@@ -431,10 +399,6 @@ async def handle_event(handler: IHookHandler, context: HookContext, data: dict):
     elif context.event_type == HookEventType.PRE_TOOL_USE:
         tool_name = context.tool_name or ""
         tool_input = context.tool_input or {}
-        # AskUserQuestion 需要发送 ESC，其他工具（如 Bash）正常等待用户选择
-        if tool_name == "AskUserQuestion":
-            log_event(data, "发送 ESC 取消等待")
-            send_escape_to_tmux()
         message = build_permission_message(context, tool_input)
         log_event(data, "发送工具使用前权限请求")
         await send_feishu_notification(message, "permission", context.event_type.value)
@@ -462,10 +426,6 @@ async def handle_event(handler: IHookHandler, context: HookContext, data: dict):
         if context.event_type == HookEventType.PERMISSION_REQUEST:
             tool_name = context.tool_name or ""
             tool_input = context.tool_input or {}
-            # AskUserQuestion 需要发送 ESC，其他（如 Bash）正常等待用户选择
-            if tool_name == "AskUserQuestion":
-                log_event(data, "发送 ESC 取消等待")
-                send_escape_to_tmux()
             message = build_permission_message(context, tool_input)
         else:
             message = context.notification_message or "收到通知"

@@ -230,53 +230,6 @@ class TestBuildPermissionMessage:
         assert "测试?" in message
 
 
-class TestSendEscapeToTmux:
-    """测试 send_escape_to_tmux 函数"""
-
-    def test_send_escape_skip_in_test_mode(self):
-        """测试测试模式下跳过"""
-        from src.hook_handler import send_escape_to_tmux
-
-        with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "test"}):
-            result = send_escape_to_tmux()
-            assert result is True
-
-    def test_send_escape_skip_with_env(self):
-        """测试环境变量跳过"""
-        from src.hook_handler import send_escape_to_tmux
-
-        with patch.dict(os.environ, {"SKIP_TMUX_ESCAPE": "1"}):
-            result = send_escape_to_tmux()
-            assert result is True
-
-    def test_send_escape_success(self):
-        """测试成功发送 ESC"""
-        from src.hook_handler import send_escape_to_tmux
-
-        with patch.dict(os.environ, {}, clear=True):
-            with patch('src.hook_handler.get_settings') as mock_settings:
-                mock_settings.return_value.TMUX_SESSION_NAME = "cc"
-
-                with patch('subprocess.run') as mock_run:
-                    mock_run.return_value = Mock(returncode=0)
-
-                    result = send_escape_to_tmux()
-                    assert result is True
-                    mock_run.assert_called()
-
-    def test_send_escape_tmux_not_found(self):
-        """测试 tmux 未找到"""
-        from src.hook_handler import send_escape_to_tmux
-
-        with patch.dict(os.environ, {}, clear=True):
-            with patch('src.hook_handler.get_settings') as mock_settings:
-                mock_settings.return_value.TMUX_SESSION_NAME = "cc"
-
-                with patch('subprocess.run', side_effect=FileNotFoundError()):
-                    result = send_escape_to_tmux()
-                    assert result is False
-
-
 class TestSendFeishuNotification:
     """测试 send_feishu_notification 函数"""
 
@@ -391,12 +344,10 @@ class TestHandleEvent:
 
         with patch('src.hook_handler.send_feishu_notification', new_callable=AsyncMock) as mock_send:
             mock_send.return_value = "msg_id"
-            with patch('src.hook_handler.send_escape_to_tmux', return_value=True) as mock_escape:
-                with patch('src.hook_handler.log_event'):
-                    await handle_event(handler, context, data)
+            with patch('src.hook_handler.log_event'):
+                await handle_event(handler, context, data)
 
-                    mock_escape.assert_called_once()
-                    mock_send.assert_called()
+                mock_send.assert_called()
 
     @pytest.mark.asyncio
     async def test_handle_event_notification(self):

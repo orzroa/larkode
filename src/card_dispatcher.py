@@ -269,6 +269,31 @@ class CardDispatcher:
         Returns:
             Tuple[str, Optional[str]]: (feishu_message_id, file_key or None)
         """
+        # 添加工作空间名称前缀到标题
+        workspace_name = None
+        try:
+            from src.workspace_manager import get_workspace_manager
+            workspace_manager = get_workspace_manager()
+            current_workspace = workspace_manager.get_current_workspace()
+
+            if current_workspace:
+                workspace_name = Path(current_workspace).name
+        except Exception:
+            pass  # 忽略异常，继续尝试其他方式
+
+        # 如果没有获取到，使用当前工作目录（hook 进程场景）
+        if not workspace_name:
+            try:
+                cwd = os.getcwd()
+                if cwd:
+                    workspace_name = Path(cwd).name
+            except Exception:
+                pass  # 忽略异常
+
+        # 添加工作空间标签到标题
+        if workspace_name:
+            title = f"[{workspace_name}] {title}"
+
         # 1. 生成卡片编号和时间戳
         card_id = self._get_card_id()
         timestamp = datetime.now().isoformat()

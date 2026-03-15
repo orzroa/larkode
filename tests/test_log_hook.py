@@ -31,7 +31,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from src.hook_handler import (
     _build_permission_content,
     build_permission_request_message,
-    send_escape_to_tmux,
     send_feishu_notification,
     handle_event,
 )

@@ -19,7 +19,7 @@ class TestAIExecutorInit:
         from src.ai_executor.base import AIExecutor
 
         with patch('src.ai_executor.base.get_settings') as mock_settings:
-            mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test/workspace")
+            mock_settings.return_value.workspace_default_dir = Path("/test/workspace")
 
             executor = AIExecutor()
 

@@ -25,6 +25,7 @@ class TestTmuxSessionManagerInit:
         settings.TMUX_SESSION_NAME = "cc"
         settings.IFLOW_CLI_PATH = "iflow"
         settings.IFLOW_WORKSPACE_DIR = Path("/test/iflow")
+        settings.workspace_default_dir = Path("/test/workspace")
         settings.get_process_name = Mock(return_value="claude")
         return settings
 
@@ -37,7 +38,8 @@ class TestTmuxSessionManagerInit:
 
                 assert manager._cli_path == "claude"
                 assert manager.workspace == Path("/test/workspace")
-                assert manager._tmux_session == "cc"
+                # 现在 session 名称是基于 workspace_default_dir 动态生成的
+                assert manager._tmux_session == "cc-test-workspace"
 
     def test_init_iflow_mode(self, mock_settings):
         """测试 iFlow 模式初始化"""
@@ -62,6 +64,43 @@ class TestTmuxSessionManagerInit:
 
                 assert manager.workspace == custom_workspace
 
+    def test_init_with_dynamic_session_name(self, mock_settings):
+        """测试根据 workspace 动态生成 session 名称"""
+        workspace = Path("/home/sc/Workspaces/myproject")
+
+        from src.ai_executor.tmux_session import TmuxSessionManager
+        with patch('src.ai_executor.tmux_session.get_settings', return_value=mock_settings):
+            with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
+                manager = TmuxSessionManager(workspace=workspace)
+
+                # session 名称应该是 "cc-home-sc-Workspaces-myproject"
+                assert manager._tmux_session == "cc-home-sc-Workspaces-myproject"
+
+    def test_init_with_explicit_session_name(self, mock_settings):
+        """测试显式指定 session 名称"""
+        workspace = Path("/home/sc/Workspaces/myproject")
+
+        from src.ai_executor.tmux_session import TmuxSessionManager
+        with patch('src.ai_executor.tmux_session.get_settings', return_value=mock_settings):
+            with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
+                manager = TmuxSessionManager(
+                    workspace=workspace,
+                    session_name="custom-session"
+                )
+
+                # 应该使用显式指定的名称
+                assert manager._tmux_session == "custom-session"
+
+    def test_init_with_default_workspace(self, mock_settings):
+        """测试使用默认工作空间生成 session 名称"""
+        from src.ai_executor.tmux_session import TmuxSessionManager
+        with patch('src.ai_executor.tmux_session.get_settings', return_value=mock_settings):
+            with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
+                manager = TmuxSessionManager()
+
+                # 应该使用 workspace_default_dir 生成 session 名称
+                assert manager._tmux_session == "cc-test-workspace"
+
 
 class TestCheckTmuxSession:
     """测试 _check_tmux_session 方法"""
@@ -74,6 +113,7 @@ class TestCheckTmuxSession:
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
+            mock_settings.return_value.workspace_default_dir = Path("/test")
             mock_settings.return_value.get_process_name = Mock(return_value="claude")
 
             from src.ai_executor.tmux_session import TmuxSessionManager
@@ -120,6 +160,7 @@ class TestCheckAIRunningInSession:
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
+            mock_settings.return_value.workspace_default_dir = Path("/test")
             mock_settings.return_value.get_process_name = Mock(return_value="claude")
 
             from src.ai_executor.tmux_session import TmuxSessionManager
@@ -179,6 +220,7 @@ class TestCreateTmuxSession:
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
+            mock_settings.return_value.workspace_default_dir = Path("/test")
             mock_settings.return_value.get_process_name = Mock(return_value="claude")
 
             from src.ai_executor.tmux_session import TmuxSessionManager
@@ -215,6 +257,7 @@ class TestEnsureTmuxSession:
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
+            mock_settings.return_value.workspace_default_dir = Path("/test")
             mock_settings.return_value.get_process_name = Mock(return_value="claude")
 
             from src.ai_executor.tmux_session import TmuxSessionManager
@@ -262,6 +305,7 @@ class TestStartAIInExistingSession:
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
+            mock_settings.return_value.workspace_default_dir = Path("/test")
             mock_settings.return_value.get_process_name = Mock(return_value="claude")
 
             from src.ai_executor.tmux_session import TmuxSessionManager
@@ -298,6 +342,7 @@ class TestSendCommand:
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
+            mock_settings.return_value.workspace_default_dir = Path("/test")
             mock_settings.return_value.get_process_name = Mock(return_value="claude")
 
             from src.ai_executor.tmux_session import TmuxSessionManager
@@ -381,6 +426,7 @@ class TestCleanTmuxOutput:
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
+            mock_settings.return_value.workspace_default_dir = Path("/test")
             mock_settings.return_value.get_process_name = Mock(return_value="claude")
 
             from src.ai_executor.tmux_session import TmuxSessionManager
@@ -435,6 +481,7 @@ class TestMonitorOutput:
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
+            mock_settings.return_value.workspace_default_dir = Path("/test")
             mock_settings.return_value.get_process_name = Mock(return_value="claude")
 
             from src.ai_executor.tmux_session import TmuxSessionManager

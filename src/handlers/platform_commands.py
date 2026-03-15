@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
 from src.handlers.ccr_commands import CCRCommands
+from src.handlers.workspace_commands import WorkspaceCommands
 from src.config.settings import get_settings
 # 避免循环导入
 if TYPE_CHECKING:
@@ -72,6 +73,8 @@ class PlatformCommands:
             await self._cmd_shot(user_id, args)
         elif cmd == "#model":
             await self._cmd_model(user_id, args)
+        elif cmd == "#ws":
+            await self._cmd_workspace(user_id, args)
         else:
             await self._send_error(user_id, f"未知命令: {cmd}，请输入 #help 查看帮助")
 
@@ -79,6 +82,13 @@ class PlatformCommands:
         """处理 #model 命令 - CCR 模型切换"""
         ccr = CCRCommands()
         await ccr.handle_model_command(user_id, args, self._send_via_sender)
+
+    async def _cmd_workspace(self, user_id: str, args: str):
+        """处理 #ws 命令 - 工作空间切换"""
+        workspace_cmd = WorkspaceCommands()
+        await workspace_cmd.handle_workspace_command(
+            user_id, args, self._send_via_sender
+        )
     async def _cmd_help(self, user_id: str):
         """显示帮助信息"""
         help_text = """
@@ -114,6 +124,12 @@ class PlatformCommands:
 查看或切换 CCR 模型（无参数显示列表）
 
 
+---
+
+📁 **#ws** `[序号]`
+查看或切换工作空间（无参数显示列表，有参数按序号切换）
+
+
 
 ---
 
@@ -140,7 +156,21 @@ class PlatformCommands:
             await self._send_via_sender(user_id, card=card)
     async def _cmd_cancel(self, user_id: str, args: str):
         """发送 ESC 到 tmux"""
-        session_name = get_settings().TMUX_SESSION_NAME or "cc"
+        # 获取当前工作空间的 session 名称
+        try:
+            from src.workspace_manager import get_workspace_manager
+            workspace_manager = get_workspace_manager()
+            current_workspace = workspace_manager.get_current_workspace()
+
+            if current_workspace:
+                path_str = current_workspace.strip('/')
+                session_name = f"cc-{path_str.replace('/', '-')}"
+            else:
+                # 没有当前工作空间，使用默认
+                session_name = "cc"
+        except Exception as e:
+            logger.warning(f"获取当前工作空间失败: {e}，使用默认 session 'cc'")
+            session_name = "cc"
         # 发送 ESC 到 tmux session
         try:
             subprocess.run(

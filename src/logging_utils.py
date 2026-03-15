@@ -58,6 +58,46 @@ def clear_context() -> None:
     _message_number.set(None)
 
 
+class WorkspaceFormatter(logging.Formatter):
+    """带工作空间标签的日志格式化器"""
+
+    def format(self, record: logging.LogRecord) -> str:
+        # 获取当前工作空间名称
+        workspace_name = self._get_workspace_name()
+
+        # 格式化基础日志
+        formatted = super().format(record)
+
+        # 在第一个 ] 后插入工作空间标签
+        # 原格式: [时间] [logger] [级别] 消息
+        # 新格式: [时间] [工作空间] [logger] [级别] 消息
+        import re
+        # 匹配格式：[时间] [logger] [级别] 消息
+        match = re.match(r'(\[[^\]]+\])\s+(\[[^\]]+\])\s+(\[[^\]]+\])\s+(.*)', formatted)
+        if match:
+            time_part, logger_part, level_part, message_part = match.groups()
+            formatted = f"{time_part} [{workspace_name}] {logger_part} {level_part} {message_part}"
+
+        return formatted
+
+    def _get_workspace_name(self) -> str:
+        """获取当前工作空间名称"""
+        try:
+            from src.workspace_manager import get_workspace_manager
+            workspace_manager = get_workspace_manager()
+            workspace_path = workspace_manager.get_current_workspace()
+
+            if workspace_path:
+                # 从路径中提取最后一部分作为名称
+                # 例如: /home/sc/Workspaces/github/larkode -> larkode
+                return Path(workspace_path).name
+            else:
+                return "default"
+        except Exception:
+            # 如果获取失败，返回默认值
+            return "default"
+
+
 class StructuredFormatter(logging.Formatter):
     """结构化日志格式化器"""
 
@@ -186,8 +226,8 @@ def setup_logging(
         # 使用结构化格式化器
         formatter = StructuredFormatter()
     else:
-        # 使用标准格式化器
-        formatter = logging.Formatter(
+        # 使用带工作空间标签的格式化器
+        formatter = WorkspaceFormatter(
             "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S"
         )
@@ -206,6 +246,13 @@ def setup_logging(
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(formatter)
     root_logger.addHandler(error_handler)
+
+    # 降低第三方库的日志级别（避免过多 DEBUG 日志）
+    # 飞书 SDK
+    logging.getLogger("Lark").setLevel(logging.WARNING)
+    # 其他可能产生大量日志的库
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> ContextLogger:

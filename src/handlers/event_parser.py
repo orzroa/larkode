@@ -73,7 +73,8 @@ class EventParser:
         logger.debug("准备调用 platform.parse_event...")
         try:
             normalized_message = self.platform.parse_event(event_data)
-            logger.debug(f"parse_event 返回: {normalized_message}")
+            # 不打印完整的 normalized_message，避免刷屏
+            # logger.debug(f"parse_event 返回: {normalized_message}")
         except Exception as e:
             logger.error(f"parse_event 异常: {e}", exc_info=True)
             return

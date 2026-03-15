@@ -45,10 +45,17 @@ class DefaultSessionManager(ISessionManager):
         try:
             session_id = self._session_manager.find_running_session()
             if session_id:
+                # 动态获取当前工作空间
+                from src.workspace_manager import get_workspace_manager
+                from pathlib import Path
+                workspace_manager = get_workspace_manager()
+                current_workspace = workspace_manager.get_current_workspace()
+                workspace = Path(current_workspace) if current_workspace else None
+
                 return SessionInfo(
                     session_id=session_id,
                     status=SessionStatus.ACTIVE,
-                    workspace=self.config.workspace
+                    workspace=workspace
                 )
             return None
         except Exception as e:
@@ -60,10 +67,17 @@ class DefaultSessionManager(ISessionManager):
         try:
             session_id = self._session_manager.get_session()
             if session_id:
+                # 动态获取当前工作空间
+                from src.workspace_manager import get_workspace_manager
+                from pathlib import Path
+                workspace_manager = get_workspace_manager()
+                current_workspace = workspace_manager.get_current_workspace()
+                workspace = Path(current_workspace) if current_workspace else None
+
                 return SessionInfo(
                     session_id=session_id,
                     status=SessionStatus.ACTIVE,
-                    workspace=self.config.workspace
+                    workspace=workspace
                 )
             return None
         except Exception as e:
@@ -93,9 +107,9 @@ class DefaultAIInterface(IAIAssistantInterface):
         if session_info:
             logger.info(f"使用 AI 会话: {session_info.session_id}")
 
-        # 创建执行器（总是使用 tmux 模式）
-        workspace = config.workspace or get_settings().CLAUDE_CODE_WORKSPACE_DIR
-        self.executor = TmuxAIExecutor(workspace)
+        # 创建执行器（总是使用 tmux 模式，不固定 workspace）
+        # workspace 由 TmuxAIExecutor 动态获取
+        self.executor = TmuxAIExecutor()
 
         self._is_running = False
 
@@ -127,9 +141,10 @@ class DefaultAIInterface(IAIAssistantInterface):
                     logger.info("流式输出管理器已创建")
 
             # 执行命令（带流式输出）
+            # 不传入 workspace，让 executor 动态获取当前工作空间
             async for output in self.executor.execute_command(
                 command,
-                self.config.workspace,
+                workspace=None,
                 streaming=bool(streaming_manager),
                 streaming_manager=streaming_manager,
                 user_id=user_id
@@ -157,11 +172,17 @@ class DefaultAIInterface(IAIAssistantInterface):
         try:
             session_info = self.session_manager.find_running_session()
 
+            # 动态获取当前工作空间
+            from src.workspace_manager import get_workspace_manager
+            workspace_manager = get_workspace_manager()
+            current_workspace = workspace_manager.get_current_workspace()
+            workspace_str = current_workspace if current_workspace else "未设置"
+
             return {
                 "assistant_type": "default",
                 "session_id": session_info.session_id if session_info else None,
                 "session_status": session_info.status.value if session_info else SessionStatus.INACTIVE.value,
-                "workspace": str(self.config.workspace),
+                "workspace": workspace_str,
                 "executor_type": "tmux" if self.use_tmux_executor else "direct",
                 "is_running": self._is_running,
                 "config": self.config.to_dict(),

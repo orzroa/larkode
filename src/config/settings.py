@@ -37,7 +37,11 @@ class Settings(BaseSettings):
     feishu_message_domain: str = Field(default="FEISHU_DOMAIN", description="飞书 API 域名")
 
     # ==================== 通用 AI 配置 ====================
-    tmux_session_name: str = Field(default="cc", description="tmux 会话名称")
+    tmux_session_name: str = Field(
+        default="cc",
+        description="[已废弃] tmux 会话名称（现在根据工作空间动态生成）",
+        deprecated=True
+    )
     session_max_age_minutes: int = Field(default=30, description="Session 最大未更新时间（分钟）")
 
     # ==================== Claude Code 配置 ====================
@@ -89,6 +93,35 @@ class Settings(BaseSettings):
     # ==================== 截屏配置 ====================
     tmux_capture_lines: int = Field(default=200, description="截屏默认行数")
 
+    # ==================== 工作空间配置 ====================
+    workspace_discovery_enabled: bool = Field(
+        default=False,
+        description="是否启用工作空间自动发现"
+    )
+    workspace_root_dir: Path = Field(
+        default=Path(""),
+        description="工作空间自动发现的根目录"
+    )
+    workspace_discovery_depth: int = Field(
+        default=1,
+        description="工作空间自动发现的扫描深度"
+    )
+    workspace_exclude_patterns: str = Field(
+        default='[".git", "node_modules", "__pycache__", ".venv", "venv", ".pytest_cache", "htmlcov", ".idea", ".vscode", "dist", "build"]',
+        description="排除的目录模式（JSON 格式）"
+    )
+    workspace_default_dir: Path = Field(
+        default=Path(""),
+        description="默认工作空间目录"
+    )
+
+    # 已废弃：手动配置的工作空间列表
+    workspaces: str = Field(
+        default="[]",
+        description="[已废弃] 工作空间配置（JSON 格式）",
+        deprecated=True
+    )
+
     # ==================== AI 自动重启配置 ====================
     ai_auto_restart_enabled: bool = Field(default=True, description="是否启用 AI 自动重启")
     ai_max_restart_attempts: int = Field(default=3, description="最大重启次数")
@@ -112,6 +145,7 @@ class Settings(BaseSettings):
     streaming_update_interval: float = Field(default=1.0, description="流式输出更新间隔（秒）- 节流控制")
     streaming_timeout: int = Field(default=3600, description="流式输出超时时间（秒），可通过 STREAMING_TIMEOUT 环境变量配置")
     streaming_stable_threshold: int = Field(default=2, description="输出稳定阈值（连续多少次不变认为完成）")
+    streaming_capture_lines: int = Field(default=10, description="流式输出时抓取 tmux 的行数")
 
     # ==================== 方法 ====================
 
@@ -142,6 +176,17 @@ class Settings(BaseSettings):
             return "iflow"
         return "claude"
 
+    def get_workspaces(self) -> List[dict]:
+        """[已废弃] 获取工作空间列表，请使用 WorkspaceManager"""
+        try:
+            import json
+            workspaces = json.loads(self.workspaces)
+            if isinstance(workspaces, list):
+                return workspaces
+            return []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
     def get_platform_config(self, platform_name: str) -> dict:
         """获取指定平台的配置"""
         platform_name = platform_name.lower()
@@ -169,6 +214,21 @@ class Settings(BaseSettings):
 
     def init_directories(self):
         """初始化必要的目录"""
+        # 将相对路径转换为绝对路径（基于项目根目录）
+        # 项目根目录是 src/config 的父目录的父目录
+        project_root = Path(__file__).parent.parent.parent
+
+        # 转换数据目录和数据库路径为绝对路径
+        if not self.data_dir.is_absolute():
+            self.data_dir = project_root / self.data_dir
+        if not self.db_path.is_absolute():
+            self.db_path = project_root / self.db_path
+        if not self.log_dir.is_absolute():
+            self.log_dir = project_root / self.log_dir
+        if not self.upload_dir.is_absolute():
+            self.upload_dir = project_root / self.upload_dir
+
+        # 创建目录
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -224,6 +284,8 @@ def get_settings() -> Settings:
     global _settings
     if _settings is None:
         _settings = Settings()
+        # 初始化目录（并将相对路径转换为绝对路径）
+        _settings.init_directories()
     return _settings
 
 

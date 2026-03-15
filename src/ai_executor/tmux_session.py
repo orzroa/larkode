@@ -31,8 +31,15 @@ class TmuxSessionManager:
 
     TMUX_SESSION_NAME = "cc"
 
-    def __init__(self, workspace: Optional[Path] = None):
-        # 根据 AI_ASSISTANT_TYPE 配置选择 CLI 和 tmux session
+    def __init__(self, workspace: Optional[Path] = None, session_name: Optional[str] = None):
+        """
+        初始化 TmuxSessionManager
+
+        Args:
+            workspace: 工作空间路径（可选）
+            session_name: session 名称（可选，不提供则根据 workspace 自动生成）
+        """
+        # 根据 AI_ASSISTANT_TYPE 配置选择 CLI
         if get_settings().AI_ASSISTANT_TYPE == "iflow":
             self._cli_path = get_settings().IFLOW_CLI_PATH
             self.workspace = workspace or get_settings().IFLOW_WORKSPACE_DIR
@@ -40,10 +47,43 @@ class TmuxSessionManager:
             self._cli_path = get_settings().CLAUDE_CODE_CLI_PATH
             self.workspace = workspace or get_settings().CLAUDE_CODE_WORKSPACE_DIR
 
-        self._tmux_session = get_settings().TMUX_SESSION_NAME
+        # 优先使用传入的 session_name，否则根据 workspace 生成
+        if session_name:
+            self._tmux_session = session_name
+        elif workspace:
+            self._tmux_session = self._get_session_name(str(workspace))
+        else:
+            # 使用默认工作空间生成 session 名称
+            settings = get_settings()
+            if settings.workspace_default_dir:
+                self._tmux_session = self._get_session_name(str(settings.workspace_default_dir))
+            else:
+                # 兼容旧配置：如果提供了 TMUX_SESSION_NAME 则使用它
+                legacy_session = settings.TMUX_SESSION_NAME
+                if legacy_session:
+                    logger.warning(f"使用已废弃的 TMUX_SESSION_NAME 配置: {legacy_session}")
+                    self._tmux_session = legacy_session
+                else:
+                    raise ValueError("必须提供 workspace 或 session_name 参数，或配置 WORKSPACE_DEFAULT_DIR")
 
         # 输出初始化调试信息
         self._log_debug_info()
+
+    def _get_session_name(self, workspace_path: str) -> str:
+        """
+        根据工作空间路径生成 tmux session 名称
+
+        Args:
+            workspace_path: 工作空间路径
+
+        Returns:
+            session 名称（如 cc-home-sc-Workspaces-github-larkode）
+        """
+        # 将路径转换为 session 名称
+        # /home/sc/Workspaces/github/larkode -> cc-home-sc-Workspaces-github-larkode
+        path_str = workspace_path.strip('/')
+        session_name = f"cc-{path_str.replace('/', '-')}"
+        return session_name
 
     def _log_debug_info(self):
         """输出当前配置的调试信息"""
@@ -377,7 +417,7 @@ class TmuxSessionManager:
         """
         监控 tmux 输出并实时回调
 
-        改进：始终保持最新20行，缩短长分割线
+        改进：始终保持最新 N 行（由配置决定），缩短长分割线
 
         Args:
             callback: 回调函数 (accumulated_content: str, is_last: bool) -> None
@@ -388,7 +428,11 @@ class TmuxSessionManager:
         Returns:
             最终完整输出
         """
-        logger.info(f"开始监控 tmux 输出: poll_interval={poll_interval}, timeout={timeout}, stable_threshold={stable_threshold}")
+        from src.config.settings import get_settings
+        settings = get_settings()
+        capture_lines = settings.streaming_capture_lines
+
+        logger.info(f"开始监控 tmux 输出: poll_interval={poll_interval}, timeout={timeout}, stable_threshold={stable_threshold}, capture_lines={capture_lines}")
 
         start_time = time.time()
         last_output = ""
@@ -407,10 +451,10 @@ class TmuxSessionManager:
                     logger.warning(f"监控超时 ({timeout}s)，停止监控")
                     break
 
-                # 捕获 tmux 输出：始终保持最新20行
+                # 捕获 tmux 输出：始终保持最新 N 行（由配置决定）
                 try:
                     result = subprocess.run(
-                        ["tmux", "capture-pane", "-t", self._tmux_session, "-S", "-20", "-p"],
+                        ["tmux", "capture-pane", "-t", self._tmux_session, "-S", f"-{capture_lines}", "-p"],
                         capture_output=True,
                         text=True
                     )

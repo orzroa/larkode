@@ -21,7 +21,11 @@ class AIExecutor:
     """AI 执行器基础类"""
 
     def __init__(self, workspace: Optional[Path] = None):
-        self.workspace = workspace or get_settings().CLAUDE_CODE_WORKSPACE_DIR
+        # 优先使用传入的工作空间，其次使用默认工作空间
+        if workspace is None:
+            settings = get_settings()
+            workspace = settings.workspace_default_dir if settings.workspace_default_dir else None
+        self.workspace = workspace
         self._running_process = None
 
     async def execute_command(

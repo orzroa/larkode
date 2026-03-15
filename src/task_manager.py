@@ -62,13 +62,13 @@ class TaskManager:
                 from src.ai_assistants import register_default_assistant
                 register_default_assistant()
 
-            # 创建 AI 配置
+            # 创建 AI 配置（不传入 workspace，由 AI 助手动态获取）
             from src.interfaces.ai_assistant import AssistantConfig
-            workspace = Path(get_settings().CLAUDE_CODE_WORKSPACE_DIR) if get_settings().CLAUDE_CODE_WORKSPACE_DIR else Path.cwd()
+            from src.workspace_manager import get_workspace_manager
 
             config = AssistantConfig(
                 assistant_type=AssistantType.DEFAULT,
-                workspace=workspace,
+                workspace=None,  # 不固定 workspace，让 AI 助手动态获取
                 cli_path=get_settings().CLAUDE_CODE_CLI_PATH,
                 use_tmux_executor=True,  # 总是使用 tmux 模式
             )
@@ -89,8 +89,9 @@ class TaskManager:
             logger.error(f"创建默认助手失败: {e}", exc_info=True)
 
             from src.ai_executor import AIInterface, TmuxAIExecutor
-            workspace = Path(get_settings().CLAUDE_CODE_WORKSPACE_DIR) if get_settings().CLAUDE_CODE_WORKSPACE_DIR else Path.cwd()
-            tmux_executor = TmuxAIExecutor(workspace)
+
+            # 创建不固定 workspace 的执行器
+            tmux_executor = TmuxAIExecutor()
             assistant = AIInterface()
             assistant.executor = tmux_executor
             return assistant

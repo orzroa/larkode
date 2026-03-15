@@ -2,6 +2,7 @@
 Tmux 工具函数
 """
 import subprocess
+from typing import Optional
 
 from src.config.settings import get_settings
 from src.utils.text_utils import clean_tmux_output
@@ -18,7 +19,7 @@ except NameError:
     logger = logging.getLogger(__name__)
 
 
-def get_tmux_last_lines(lines: int = 200) -> str:
+def get_tmux_last_lines(lines: int = 200, workspace: Optional[str] = None) -> str:
     """
     获取 tmux pane 的最后几行输出
 
@@ -26,12 +27,34 @@ def get_tmux_last_lines(lines: int = 200) -> str:
 
     Args:
         lines: 获取的行数（默认200）
+        workspace: 工作空间路径（可选，不提供则使用当前工作空间）
 
     Returns:
         str: 清理后的 tmux 输出
     """
     try:
-        session_name = get_settings().TMUX_SESSION_NAME or "cc"
+        # 获取 session 名称
+        session_name = None
+        if workspace:
+            # 使用指定的工作空间生成 session 名称
+            path_str = workspace.strip('/')
+            session_name = f"cc-{path_str.replace('/', '-')}"
+        else:
+            # 使用 WorkspaceManager 获取当前工作空间
+            try:
+                from src.workspace_manager import get_workspace_manager
+                workspace_manager = get_workspace_manager()
+                current_workspace = workspace_manager.get_current_workspace()
+
+                if current_workspace:
+                    path_str = current_workspace.strip('/')
+                    session_name = f"cc-{path_str.replace('/', '-')}"
+                else:
+                    # 没有当前工作空间，使用默认 fallback
+                    session_name = "cc"
+            except Exception as e:
+                logger.warning(f"获取当前工作空间失败: {e}，使用默认 session 'cc'")
+                session_name = "cc"
 
         # 使用 -S -<行数> 直接获取最后 N 行
         capture_cmd = [
