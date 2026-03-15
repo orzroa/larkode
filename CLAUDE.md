@@ -63,7 +63,6 @@ uv run pytest tests/ -v -n0 --ignore=tests/integration/
 
 **AI Assistant Configuration**
 - `AI_ASSISTANT_TYPE` - AI assistant type (`claude_code`, `iflow`)
-- `CLAUDE_CODE_WORKSPACE_DIR` - Claude Code workspace directory (required)
 - `CLAUDE_CODE_CLI_PATH` - Claude Code CLI path (default `claude`)
 - `AI_HOOK_SCRIPT` - Hook script path (default `src/hook_handler.py`)
 

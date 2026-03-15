@@ -45,7 +45,6 @@ class TestSettings:
         settings = Settings()
 
         # 测试 Claude Code 配置属性
-        assert hasattr(settings, 'claude_code_workspace_dir')
         assert hasattr(settings, 'claude_code_cli_path')
         assert hasattr(settings, 'claude_code_session_id')
         assert hasattr(settings, 'claude_code_log_file')

@@ -21,7 +21,6 @@ class TestTmuxSessionManagerInit:
         settings = Mock()
         settings.AI_ASSISTANT_TYPE = "claude_code"
         settings.CLAUDE_CODE_CLI_PATH = "claude"
-        settings.CLAUDE_CODE_WORKSPACE_DIR = Path("/test/workspace")
         settings.TMUX_SESSION_NAME = "cc"
         settings.IFLOW_CLI_PATH = "iflow"
         settings.IFLOW_WORKSPACE_DIR = Path("/test/iflow")
@@ -33,13 +32,15 @@ class TestTmuxSessionManagerInit:
         """测试 Claude Code 模式初始化"""
         from src.ai_executor.tmux_session import TmuxSessionManager
         with patch('src.ai_executor.tmux_session.get_settings', return_value=mock_settings):
-            with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
-                manager = TmuxSessionManager()
+            with patch('src.workspace_manager.get_workspace_manager') as mock_wm:
+                mock_wm.return_value.get_current_workspace.return_value = "/test/workspace"
+                with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
+                    manager = TmuxSessionManager()
 
-                assert manager._cli_path == "claude"
-                assert manager.workspace == Path("/test/workspace")
-                # 现在 session 名称是基于 workspace_default_dir 动态生成的
-                assert manager._tmux_session == "cc-test-workspace"
+                    assert manager._cli_path == "claude"
+                    assert manager.workspace == Path("/test/workspace")
+                    # 现在 session 名称是基于 workspace_default_dir 动态生成的
+                    assert manager._tmux_session == "cc-test-workspace"
 
     def test_init_iflow_mode(self, mock_settings):
         """测试 iFlow 模式初始化"""
@@ -47,11 +48,13 @@ class TestTmuxSessionManagerInit:
 
         from src.ai_executor.tmux_session import TmuxSessionManager
         with patch('src.ai_executor.tmux_session.get_settings', return_value=mock_settings):
-            with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
-                manager = TmuxSessionManager()
+            with patch('src.workspace_manager.get_workspace_manager') as mock_wm:
+                mock_wm.return_value.get_current_workspace.return_value = "/test/iflow"
+                with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
+                    manager = TmuxSessionManager()
 
-                assert manager._cli_path == "iflow"
-                assert manager.workspace == Path("/test/iflow")
+                    assert manager._cli_path == "iflow"
+                    assert manager.workspace == Path("/test/iflow")
 
     def test_init_with_custom_workspace(self, mock_settings):
         """测试自定义工作目录"""
@@ -95,11 +98,13 @@ class TestTmuxSessionManagerInit:
         """测试使用默认工作空间生成 session 名称"""
         from src.ai_executor.tmux_session import TmuxSessionManager
         with patch('src.ai_executor.tmux_session.get_settings', return_value=mock_settings):
-            with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
-                manager = TmuxSessionManager()
+            with patch('src.workspace_manager.get_workspace_manager') as mock_wm:
+                mock_wm.return_value.get_current_workspace.return_value = "/test/workspace"
+                with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
+                    manager = TmuxSessionManager()
 
-                # 应该使用 workspace_default_dir 生成 session 名称
-                assert manager._tmux_session == "cc-test-workspace"
+                    # 应该使用 workspace_default_dir 生成 session 名称
+                    assert manager._tmux_session == "cc-test-workspace"
 
 
 class TestCheckTmuxSession:

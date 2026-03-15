@@ -88,7 +88,6 @@ class TestCreateDefaultAssistant:
             with patch('src.ai_assistants.register_default_assistant'):
                 with patch('src.factories.assistant_factory.AIAssistantFactory.create_assistant', return_value=mock_assistant):
                     with patch('src.config.settings.get_settings') as mock_settings:
-                        mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = "/workspace"
                         mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
                         mock_settings.return_value.CLAUDE_CODE_SESSION_ID = "session123"
 
@@ -102,7 +101,6 @@ class TestCreateDefaultAssistant:
             with patch('src.ai_assistants.register_default_assistant'):
                 with patch('src.factories.assistant_factory.AIAssistantFactory.create_assistant', return_value=None):
                     with patch('src.config.settings.get_settings') as mock_settings:
-                        mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = "/workspace"
                         mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
 
                         manager = TaskManager()

@@ -42,10 +42,21 @@ class TmuxSessionManager:
         # 根据 AI_ASSISTANT_TYPE 配置选择 CLI
         if get_settings().AI_ASSISTANT_TYPE == "iflow":
             self._cli_path = get_settings().IFLOW_CLI_PATH
-            self.workspace = workspace or get_settings().IFLOW_WORKSPACE_DIR
         else:
             self._cli_path = get_settings().CLAUDE_CODE_CLI_PATH
-            self.workspace = workspace or get_settings().CLAUDE_CODE_WORKSPACE_DIR
+
+        # workspace 参数必须由调用方提供，或从 WorkspaceManager 动态获取
+        if not workspace:
+            try:
+                from src.workspace_manager import get_workspace_manager
+                workspace_manager = get_workspace_manager()
+                workspace = workspace_manager.get_current_workspace()
+                if workspace:
+                    workspace = Path(workspace)
+            except Exception:
+                pass
+
+        self.workspace = workspace
 
         # 优先使用传入的 session_name，否则根据 workspace 生成
         if session_name:

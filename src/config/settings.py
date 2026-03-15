@@ -45,7 +45,6 @@ class Settings(BaseSettings):
     session_max_age_minutes: int = Field(default=30, description="Session 最大未更新时间（分钟）")
 
     # ==================== Claude Code 配置 ====================
-    claude_code_workspace_dir: Path = Field(default=Path(""), description="Claude Code 工作目录")
     claude_code_log_file: Path = Field(default=Path(""), description="Claude Code 日志文件路径")
     claude_code_cli_path: str = Field(default="", description="Claude Code CLI 路径")
     claude_code_session_id: str = Field(default="", description="Claude Code 会话 ID")

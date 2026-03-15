@@ -108,7 +108,6 @@ FEISHU_APP_SECRET=xxxxx
 
 # AI 助手配置（必填）
 AI_ASSISTANT_TYPE=claude_code
-CLAUDE_CODE_WORKSPACE_DIR=/path/to/workspace
 ```
 
 **第 4 步：配置 AI 主动通知（可选）**
@@ -398,7 +397,6 @@ FEISHU_APP_SECRET=xxxxx
 
 # AI assistant configuration (required)
 AI_ASSISTANT_TYPE=claude_code
-CLAUDE_CODE_WORKSPACE_DIR=/path/to/workspace
 ```
 
 **Step 4: Configure AI proactive notifications (optional)**
