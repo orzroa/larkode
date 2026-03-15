@@ -13,8 +13,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """应用配置 - 使用 Pydantic Settings"""
 
+    # 使用绝对路径，确保无论从哪里调用都能正确加载 .env
+    # settings.py 在 src/config/，所以 parent.parent.parent = 项目根目录
+    _env_file = Path(__file__).parent.parent.parent / ".env"
+
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_env_file),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",  # 忽略额外的环境变量
