@@ -15,7 +15,8 @@
 | 🔌 **多 AI 支持** | 支持 Claude Code、iFlow，工厂模式易于扩展新助手 |
 | 💬 **多 IM 框架** | 架构支持多 IM 平台，可适配Slack、钉钉等IM 框架  |
 | 🎛️ **CCR 支持** | 内置对 Claude Code Router 的支持，手机端随时切换模型 |
-| ✅ **高测试覆盖** | 778+ 单元测试，代码覆盖率达 81% |
+| 🔧 **智能配置** | 工作空间路径支持环境变量展开（$HOME、~、${VAR}），配置更灵活 |
+| ✅ **高测试覆盖** | 796+ 单元测试，代码覆盖率达 78% |
 
 ---
 
@@ -109,6 +110,15 @@ FEISHU_APP_SECRET=xxxxx
 # AI 助手配置（必填）
 AI_ASSISTANT_TYPE=claude_code
 ```
+
+**💡 提示：环境变量展开**
+
+工作空间相关的路径配置（`WORKSPACE_ROOT_DIR`、`WORKSPACE_DEFAULT_DIR`）支持自动展开环境变量：
+- `$HOME/Workspaces` → `/home/yourname/Workspaces`
+- `~/Workspaces` → `/home/yourname/Workspaces`
+- `${CUSTOM_PATH}/project` → 展开为自定义环境变量的值
+
+这让配置更加灵活，无需硬编码绝对路径。
 
 **第 4 步：配置 AI 主动通知（可选）**
 
@@ -304,7 +314,8 @@ Integrate Feishu (Lark) with AI assistants via WebSocket long connections. The s
 | 🔌 **Multi-AI Support** | Supports Claude Code, iFlow - factory pattern makes adding new assistants easy |
 | 💬 **Multi-IM Framework** | Architecture supports multiple IM platforms - easy to extend |
 | 🎛️ **CCR Support** | Built-in support for Claude Code Router - switch models anytime from mobile |
-| ✅ **High Test Coverage** | 778+ unit tests, code coverage at 81% |
+| 🔧 **Smart Configuration** | Workspace paths support environment variable expansion ($HOME, ~, ${VAR}) for flexible configuration |
+| ✅ **High Test Coverage** | 796+ unit tests, code coverage at 78% |
 
 ---
 
@@ -398,6 +409,15 @@ FEISHU_APP_SECRET=xxxxx
 # AI assistant configuration (required)
 AI_ASSISTANT_TYPE=claude_code
 ```
+
+**💡 Tip: Environment Variable Expansion**
+
+Workspace path configurations (`WORKSPACE_ROOT_DIR`, `WORKSPACE_DEFAULT_DIR`) support automatic environment variable expansion:
+- `$HOME/Workspaces` → `/home/yourname/Workspaces`
+- `~/Workspaces` → `/home/yourname/Workspaces`
+- `${CUSTOM_PATH}/project` → expands to the custom environment variable value
+
+This makes configuration more flexible without hardcoding absolute paths.
 
 **Step 4: Configure AI proactive notifications (optional)**
 
