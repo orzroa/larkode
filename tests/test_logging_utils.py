@@ -3,7 +3,9 @@
 """
 import pytest
 import json
+import logging
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 
 class TestLoggingUtils:
@@ -66,6 +68,94 @@ class TestLoggingUtils:
         logger.error("错误消息", error_code=500)
 
         clear_context()
+
+
+class TestWorkspaceFormatter:
+    """测试 WorkspaceFormatter"""
+
+    def test_format_with_workspace(self):
+        """测试带工作空间的格式化"""
+        from src.logging_utils import WorkspaceFormatter
+
+        formatter = WorkspaceFormatter(
+            fmt='[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+
+        # Mock workspace_manager
+        with patch('src.workspace_manager.get_workspace_manager') as mock_wm:
+            mock_wm.return_value.get_current_workspace.return_value = "/home/test/myproject"
+
+            record = logging.LogRecord(
+                name="test",
+                level=logging.INFO,
+                pathname="test.py",
+                lineno=1,
+                msg="test message",
+                args=(),
+                exc_info=None
+            )
+
+            formatted = formatter.format(record)
+            # 应该包含工作空间名称
+            assert "myproject" in formatted
+            assert "test message" in formatted
+
+    def test_format_without_workspace(self):
+        """测试无工作空间的格式化"""
+        from src.logging_utils import WorkspaceFormatter
+
+        formatter = WorkspaceFormatter(
+            fmt='[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+
+        # Mock workspace_manager 返回 None
+        with patch('src.workspace_manager.get_workspace_manager') as mock_wm:
+            mock_wm.return_value.get_current_workspace.return_value = None
+
+            record = logging.LogRecord(
+                name="test",
+                level=logging.INFO,
+                pathname="test.py",
+                lineno=1,
+                msg="test message",
+                args=(),
+                exc_info=None
+            )
+
+            formatted = formatter.format(record)
+            # 应该包含默认工作空间名称
+            assert "default" in formatted
+            assert "test message" in formatted
+
+    def test_format_with_exception(self):
+        """测试 workspace_manager 抛出异常的情况"""
+        from src.logging_utils import WorkspaceFormatter
+
+        formatter = WorkspaceFormatter(
+            fmt='[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+
+        # Mock workspace_manager 抛出异常
+        with patch('src.workspace_manager.get_workspace_manager') as mock_wm:
+            mock_wm.side_effect = Exception("test error")
+
+            record = logging.LogRecord(
+                name="test",
+                level=logging.INFO,
+                pathname="test.py",
+                lineno=1,
+                msg="test message",
+                args=(),
+                exc_info=None
+            )
+
+            formatted = formatter.format(record)
+            # 应该包含默认工作空间名称（异常被捕获）
+            assert "default" in formatted
+            assert "test message" in formatted
 
 
 class TestSetupLogging:
