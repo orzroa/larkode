@@ -252,6 +252,7 @@ class CardDispatcher:
         template_color: str = "grey",
         max_length: Optional[int] = None,
         message_source: MessageSource = MessageSource.FEISHU,
+        workspace_path: Optional[str] = None,
     ) -> Tuple[str, Optional[str]]:
         """
         统一的卡片发送接口
@@ -265,23 +266,44 @@ class CardDispatcher:
             template_color: 卡片颜色
             max_length: 最大长度限制，None 则使用默认配置
             message_source: 消息来源（FEISHU, HOOK, API_TEST）
+            workspace_path: 工作空间路径（优先使用，用于 hook 场景）
 
         Returns:
             Tuple[str, Optional[str]]: (feishu_message_id, file_key or None)
         """
         # 添加工作空间名称前缀到标题
         workspace_name = None
-        try:
-            from src.workspace_manager import get_workspace_manager
-            workspace_manager = get_workspace_manager()
-            current_workspace = workspace_manager.get_current_workspace()
 
-            if current_workspace:
-                workspace_name = Path(current_workspace).name
-        except Exception:
-            pass  # 忽略异常，继续尝试其他方式
+        # 优先使用传入的工作空间路径（hook 进程场景）
+        if workspace_path:
+            try:
+                workspace_name = Path(workspace_path).name
+            except Exception:
+                pass
 
-        # 如果没有获取到，使用当前工作目录（hook 进程场景）
+        # 如果没有传入，从环境变量获取（hook 进程场景）
+        if not workspace_name:
+            try:
+                import os
+                workspace_dir = os.getenv("AI_WORKSPACE_DIR") or os.getenv("CLAUDE_CODE_DIR")
+                if workspace_dir:
+                    workspace_name = Path(workspace_dir).name
+            except Exception:
+                pass
+
+        # 如果环境变量没有，从 workspace_manager 获取（服务进程场景）
+        if not workspace_name:
+            try:
+                from src.workspace_manager import get_workspace_manager
+                workspace_manager = get_workspace_manager()
+                current_workspace = workspace_manager.get_current_workspace()
+
+                if current_workspace:
+                    workspace_name = Path(current_workspace).name
+            except Exception:
+                pass  # 忽略异常，继续尝试其他方式
+
+        # 如果还没有获取到，使用当前工作目录（最后备选）
         if not workspace_name:
             try:
                 cwd = os.getcwd()

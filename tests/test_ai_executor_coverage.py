@@ -174,10 +174,9 @@ class TestTmuxAIExecutorCheckHealth:
 
     def test_monitor_and_restart_disabled(self):
         """测试自动重启未启用"""
-        executor = TmuxAIExecutor()
-
         with patch('src.ai_executor.get_settings') as mock_settings:
             mock_settings.return_value.AI_AUTO_RESTART_ENABLED = False
+            executor = TmuxAIExecutor()
 
             result = executor._monitor_and_restart_if_needed()
 
@@ -185,10 +184,9 @@ class TestTmuxAIExecutorCheckHealth:
 
     def test_monitor_and_restart_health_process(self):
         """测试进程健康时重启"""
-        executor = TmuxAIExecutor()
-
         with patch('src.ai_executor.get_settings') as mock_settings:
             mock_settings.return_value.AI_AUTO_RESTART_ENABLED = True
+            executor = TmuxAIExecutor()
 
             with patch.object(executor, '_check_ai_process_health', return_value=True):
                 result = executor._monitor_and_restart_if_needed()
@@ -199,11 +197,11 @@ class TestTmuxAIExecutorCheckHealth:
 
     def test_monitor_and_restart_max_attempts(self):
         """测试达到最大重启次数"""
-        executor = TmuxAIExecutor()
-        executor._restart_count = 10  # Set to max
-
         with patch('src.ai_executor.get_settings') as mock_settings:
             mock_settings.return_value.AI_AUTO_RESTART_ENABLED = True
+            mock_settings.return_value.AI_MAX_RESTART_ATTEMPTS = 3
+            executor = TmuxAIExecutor()
+            executor._restart_count = 10  # Set to max
 
             with patch.object(executor, '_check_ai_process_health', return_value=False):
                 result = executor._monitor_and_restart_if_needed()
@@ -212,11 +210,11 @@ class TestTmuxAIExecutorCheckHealth:
 
     def test_monitor_and_restart_success(self):
         """测试重启成功"""
-        executor = TmuxAIExecutor()
-        executor._restart_count = 0
-
         with patch('src.ai_executor.get_settings') as mock_settings:
             mock_settings.return_value.AI_AUTO_RESTART_ENABLED = True
+            mock_settings.return_value.AI_MAX_RESTART_ATTEMPTS = 3
+            executor = TmuxAIExecutor()
+            executor._restart_count = 0
 
             with patch.object(executor, '_check_ai_process_health', return_value=False):
                 with patch.object(executor, '_ensure_tmux_session', return_value=(True, True)):
@@ -228,11 +226,11 @@ class TestTmuxAIExecutorCheckHealth:
 
     def test_monitor_and_restart_failure(self):
         """测试重启失败"""
-        executor = TmuxAIExecutor()
-        executor._restart_count = 0
-
         with patch('src.ai_executor.get_settings') as mock_settings:
             mock_settings.return_value.AI_AUTO_RESTART_ENABLED = True
+            mock_settings.return_value.AI_MAX_RESTART_ATTEMPTS = 3
+            executor = TmuxAIExecutor()
+            executor._restart_count = 0
 
             with patch.object(executor, '_check_ai_process_health', return_value=False):
                 with patch.object(executor, '_ensure_tmux_session', return_value=(False, False)):

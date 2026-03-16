@@ -165,7 +165,7 @@ stdin_parsed:
         f.write(json.dumps(json_data, ensure_ascii=False) + "\n")
 
 
-async def send_feishu_notification(message: str, message_type: str = "stop", event_name: str = "") -> str:
+async def send_feishu_notification(message: str, message_type: str = "stop", event_name: str = "", cwd: Optional[str] = None) -> str:
     """
     发送飞书通知消息
 
@@ -173,6 +173,7 @@ async def send_feishu_notification(message: str, message_type: str = "stop", eve
         message: 要发送的消息内容
         message_type: 消息类型 ("stop", "prompt", "permission")
         event_name: Hook 事件名称
+        cwd: 工作目录路径（用于确定工作空间名称）
 
     Returns:
         str: 发送成功返回消息ID，失败返回空字符串
@@ -247,7 +248,8 @@ async def send_feishu_notification(message: str, message_type: str = "stop", eve
             title=title,
             content=message,
             message_type="status",
-            template_color=template_color
+            template_color=template_color,
+            workspace_path=cwd
         )
 
         logger.info(f"成功发送飞书通知给用户 {user_id}, message_id={feishu_msg_id}")
@@ -376,7 +378,7 @@ async def handle_event(handler: IHookHandler, context: HookContext, data: dict):
 
         if context.user_prompt:
             success = await send_feishu_notification(
-                context.user_prompt, "prompt", context.event_type.value
+                context.user_prompt, "prompt", context.event_type.value, cwd=context.cwd
             )
             if success:
                 log_event(data, "发送用户提问通知")
@@ -384,14 +386,14 @@ async def handle_event(handler: IHookHandler, context: HookContext, data: dict):
     # Stop: 发送完成通知
     elif context.event_type == HookEventType.STOP:
         message = context.last_assistant_message or "已完成响应"
-        success = await send_feishu_notification(message, "stop", context.event_type.value)
+        success = await send_feishu_notification(message, "stop", context.event_type.value, cwd=context.cwd)
         if success:
             log_event(data, "发送完成通知")
 
     # SubagentStop: 发送子代理完成通知
     elif context.event_type == HookEventType.SUBAGENT_STOP:
         message = context.last_assistant_message or "子代理已完成"
-        success = await send_feishu_notification(message, "stop", context.event_type.value)
+        success = await send_feishu_notification(message, "stop", context.event_type.value, cwd=context.cwd)
         if success:
             log_event(data, "发送子代理完成通知")
 
@@ -401,7 +403,7 @@ async def handle_event(handler: IHookHandler, context: HookContext, data: dict):
         tool_input = context.tool_input or {}
         message = build_permission_message(context, tool_input)
         log_event(data, "发送工具使用前权限请求")
-        await send_feishu_notification(message, "permission", context.event_type.value)
+        await send_feishu_notification(message, "permission", context.event_type.value, cwd=context.cwd)
 
     # PostToolUseFailure: 发送工具使用失败通知
     elif context.event_type == HookEventType.POST_TOOL_USE_FAILURE:
@@ -409,7 +411,7 @@ async def handle_event(handler: IHookHandler, context: HookContext, data: dict):
         tool_result = context.tool_input or {}
         message = f"**工具执行失败**\n\n工具：{tool_name}\n\n结果：\n```{json.dumps(tool_result, ensure_ascii=False, indent=2)}```"
         log_event(data, "发送工具使用失败通知")
-        asyncio.run(send_feishu_notification(message, "permission", context.event_type.value))
+        asyncio.run(send_feishu_notification(message, "permission", context.event_type.value, cwd=context.cwd))
 
     # PostToolUse: 记录工具使用结果（可选发送通知）
     elif context.event_type == HookEventType.POST_TOOL_USE:
@@ -418,7 +420,7 @@ async def handle_event(handler: IHookHandler, context: HookContext, data: dict):
         # tool_name = context.tool_name or ""
         # tool_result = context.tool_input or {}
         # message = f"工具 {tool_name} 执行完成"
-        # asyncio.run(send_feishu_notification(message, "permission", context.event_type.value))
+        # asyncio.run(send_feishu_notification(message, "permission", context.event_type.value, cwd=context.cwd))
 
     # Notification / PermissionRequest: 发送通知卡片
     elif context.event_type in (HookEventType.NOTIFICATION, HookEventType.PERMISSION_REQUEST):
@@ -430,7 +432,7 @@ async def handle_event(handler: IHookHandler, context: HookContext, data: dict):
         else:
             message = context.notification_message or "收到通知"
         log_event(data, "发送通知卡片")
-        await send_feishu_notification(message, "permission", context.event_type.value)
+        await send_feishu_notification(message, "permission", context.event_type.value, cwd=context.cwd)
 
 
 async def main():

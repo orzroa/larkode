@@ -47,7 +47,6 @@ from src.factories.platform_factory import IMPlatformFactory
 from src.interfaces.im_platform import PlatformConfig
 from src.handlers.event_handlers import create_event_handlers
 from src.handlers.interaction_monitor import InteractionMonitor
-from src.api_server import get_api_server
 
 # 配置日志 - 优先使用新的日志系统
 try:
@@ -252,15 +251,6 @@ class ClaudeFeishuService:
         )
         logger.info("交互请求监控已启动")
 
-        # 启动本地 HTTP API 服务器（用于集成测试）
-        # 通过环境变量控制，默认不启动
-        test_mode = os.getenv("TEST_MODE_ENABLED", "false").lower() == "true"
-        if test_mode:
-            api_server = get_api_server()
-            api_server.set_message_handler(message_handler)
-            await api_server.start()
-            logger.info("API 服务器已启动（测试模式）")
-
         # 等待关闭信号
         await self._shutdown_event.wait()
 
@@ -338,10 +328,6 @@ class ClaudeFeishuService:
     async def stop(self):
         """停止服务"""
         self._shutdown_event.set()
-
-        # 停止 API 服务器
-        api_server = get_api_server()
-        await api_server.stop()
 
         # 停止交互监控任务
         if self._interaction_monitor_task and not self._interaction_monitor_task.done():

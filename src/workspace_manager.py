@@ -156,7 +156,18 @@ class WorkspaceManager:
 
         # 检查 session 是否存在
         if session_manager._check_tmux_session():
-            # session 存在，attach
+            # session 存在，设置环境变量（确保 hook 进程能获取正确的工作空间）
+            try:
+                subprocess.run(
+                    ["tmux", "set-environment", "-t", session_name,
+                     "AI_WORKSPACE_DIR", workspace_path],
+                    check=True
+                )
+                logger.info(f"已更新环境变量 AI_WORKSPACE_DIR={workspace_path}")
+            except Exception as e:
+                logger.warning(f"设置环境变量失败: {e}")
+
+            # attach
             logger.info(f"工作空间 {workspace_path} 已有运行中的 session: {session_name}")
             try:
                 subprocess.run(

@@ -258,6 +258,17 @@ class TmuxSessionManager:
             subprocess.run(cmd, check=True)
             logger.info(f"✅ tmux session {self._tmux_session} 已创建，AI 已启动")
 
+            # 设置 AI_WORKSPACE_DIR 环境变量到 session，让 hook 进程能获取正确的工作空间
+            try:
+                subprocess.run(
+                    ["tmux", "set-environment", "-t", self._tmux_session,
+                     "AI_WORKSPACE_DIR", str(self.workspace)],
+                    check=True
+                )
+                logger.info(f"  → 已设置环境变量 AI_WORKSPACE_DIR={self.workspace}")
+            except Exception as e:
+                logger.warning(f"设置环境变量失败: {e}")
+
             # 等待 AI 进程启动
             time.sleep(AI_STARTUP_WAIT_SECONDS)
 
