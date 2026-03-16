@@ -1,5 +1,7 @@
 """
-pytest 配置 - 设置全局测试模式
+集成测试公共 fixtures
+
+提供飞书相关的共享 fixtures
 """
 import os
 import subprocess
@@ -7,60 +9,62 @@ from pathlib import Path
 
 import pytest
 
-
-# 已知用户使用的 tmux sessions（不应该被清理）
-KNOWN_SESSIONS = {
-    "cc-home-sc-Workspaces-github-aiTermLark",
-    "cc-home-sc-Workspaces-github-larkode",
-}
+from src.config.settings import get_settings, reload_settings
+from src.feishu import FeishuAPI
+from src.im_platforms.feishu import FeishuPlatform, FeishuCardBuilder
+from src.interfaces.im_platform import NormalizedCard, PlatformConfig
 
 # 项目根目录
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
-def pytest_configure(config):
-    """pytest 启动时设置测试模式"""
-    os.environ["TEST_MODE_ENABLED"] = "true"
+# ==================== 飞书相关 fixtures ====================
+
+@pytest.fixture(scope="module")
+def user_id():
+    """获取飞书用户 ID（从 .env 读取）"""
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / ".env")
+
+    uid = os.getenv("FEISHU_HOOK_NOTIFICATION_USER_ID")
+    if not uid:
+        pytest.skip("未配置 FEISHU_HOOK_NOTIFICATION_USER_ID，跳过集成测试")
+    return uid
 
 
-def pytest_unconfigure(config):
-    """pytest 结束时清除测试模式"""
-    os.environ.pop("TEST_MODE_ENABLED", None)
+@pytest.fixture(scope="module")
+def feishu_api():
+    """获取飞书 API 实例"""
+    settings = get_settings()
+    return FeishuAPI(settings.FEISHU_APP_ID, settings.FEISHU_APP_SECRET)
 
 
-@pytest.fixture(autouse=True)
-def cleanup_after_test():
-    """每个测试后恢复 settings 并清理 tmux sessions"""
-    yield
-    # 测试结束后重新加载 settings
-    try:
-        from src.config.settings import reload_settings
-        reload_settings()
-    except Exception:
-        pass
-
-    # 清理测试可能创建的 tmux sessions（除了已知用户 sessions）
-    try:
-        result = subprocess.run(
-            ["tmux", "list-sessions", "-F", "#{session_name}"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.returncode == 0:
-            sessions = result.stdout.strip().split('\n')
-            for session in sessions:
-                if session and session not in KNOWN_SESSIONS:
-                    subprocess.run(
-                        ["tmux", "kill-session", "-t", session],
-                        capture_output=True,
-                        timeout=5
-                    )
-    except Exception:
-        pass
+@pytest.fixture(scope="module")
+def feishu_platform():
+    """创建飞书平台实例"""
+    settings = get_settings()
+    config = PlatformConfig(
+        app_id=settings.FEISHU_APP_ID,
+        app_secret=settings.FEISHU_APP_SECRET,
+        domain=settings.FEISHU_MESSAGE_DOMAIN,
+        receive_id_type=settings.FEISHU_MESSAGE_RECEIVE_ID_TYPE,
+    )
+    return FeishuPlatform(config)
 
 
-# ==================== 工作空间测试 fixture ====================
+@pytest.fixture
+def send_func(feishu_platform):
+    """创建真实的飞书发送函数，支持 card 和 message 参数"""
+    async def _send(user_id: str, card: NormalizedCard = None, message: str = None):
+        if card:
+            return await feishu_platform.send_card(user_id, card)
+        elif message:
+            return await feishu_platform.api.send_message(user_id, message)
+        return False
+    return _send
+
+
+# ==================== 工作空间测试 fixtures ====================
 
 @pytest.fixture
 def test_workspaces():
@@ -72,8 +76,6 @@ def test_workspaces():
     - 清理 tmux sessions
     - 恢复环境变量
     """
-    from src.config.settings import get_settings, reload_settings
-    
     test_root = PROJECT_ROOT / "docs" / "testcases" / "workspace_switch_test"
     alpha = test_root / "workspace_alpha"
     beta = test_root / "workspace_beta"
