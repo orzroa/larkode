@@ -16,7 +16,7 @@
 | 💬 **多 IM 框架** | 架构支持多 IM 平台，可适配Slack、钉钉等IM 框架  |
 | 🎛️ **CCR 支持** | 内置对 Claude Code Router 的支持，手机端随时切换模型 |
 | 🔧 **智能配置** | 工作空间路径支持环境变量展开（$HOME、~、${VAR}），配置更灵活 |
-| ✅ **高测试覆盖** | 796+ 单元测试，代码覆盖率达 78% |
+| ✅ **高测试覆盖** | 单元测试 + 集成测试，完整测试体系 |
 
 ---
 
@@ -239,7 +239,10 @@ larkode/
 │   ├── ai_session_manager.py
 │   ├── task_manager.py
 │   └── message_handler.py
-├── tests/                   # 单元测试（778+ 测试）
+├── tests/                   # 测试目录
+│   ├── conftest.py          # 全局 fixtures
+│   ├── test_*.py            # 单元测试
+│   └── integration/         # 集成测试（真实飞书发送）
 ├── data/                    # SQLite 数据库
 ├── logs/                    # 日志文件
 ├── docs/                    # 文档
@@ -253,8 +256,11 @@ larkode/
 # 运行所有测试
 ./tests/run_all_tests.sh
 
-# 运行单元测试
-uv run pytest tests/ -v --ignore=tests/integration/
+# 运行单元测试（mock 发送，快速验证逻辑）
+uv run --no-project pytest tests/ -v --ignore=tests/integration/
+
+# 运行集成测试（真实飞书发送，需要配置环境）
+uv run --no-project pytest tests/integration/ -v
 ```
 
 ### 4.4 日志文件
@@ -315,7 +321,7 @@ Integrate Feishu (Lark) with AI assistants via WebSocket long connections. The s
 | 💬 **Multi-IM Framework** | Architecture supports multiple IM platforms - easy to extend |
 | 🎛️ **CCR Support** | Built-in support for Claude Code Router - switch models anytime from mobile |
 | 🔧 **Smart Configuration** | Workspace paths support environment variable expansion ($HOME, ~, ${VAR}) for flexible configuration |
-| ✅ **High Test Coverage** | 796+ unit tests, code coverage at 78% |
+| ✅ **High Test Coverage** | Unit tests + integration tests, complete testing system |
 
 ---
 
@@ -538,7 +544,10 @@ larkode/
 │   ├── ai_session_manager.py
 │   ├── task_manager.py
 │   └── message_handler.py
-├── tests/                   # Unit tests (778+ tests)
+├── tests/                   # Test directory
+│   ├── conftest.py          # Global fixtures
+│   ├── test_*.py            # Unit tests
+│   └── integration/         # Integration tests (real Feishu sending)
 ├── data/                    # SQLite database
 ├── logs/                    # Log files
 ├── docs/                    # Documentation
@@ -552,8 +561,11 @@ larkode/
 # Run all tests
 ./tests/run_all_tests.sh
 
-# Run unit tests only
-uv run pytest tests/ -v --ignore=tests/integration/
+# Run unit tests (mock sending, fast validation)
+uv run --no-project pytest tests/ -v --ignore=tests/integration/
+
+# Run integration tests (real Feishu sending, requires environment setup)
+uv run --no-project pytest tests/integration/ -v
 ```
 
 ### 4.4 Log Files
