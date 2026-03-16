@@ -326,7 +326,7 @@ class TestHandleEvent:
             with patch('src.hook_handler.log_event'):
                 await handle_event(handler, context, data)
 
-                mock_send.assert_called_once_with("完成", "stop", "Stop")
+                mock_send.assert_called_once_with("完成", "stop", "Stop", cwd=None)
 
     @pytest.mark.asyncio
     async def test_handle_event_pre_tool_use(self):
@@ -367,7 +367,7 @@ class TestHandleEvent:
             with patch('src.hook_handler.log_event'):
                 await handle_event(handler, context, data)
 
-                mock_send.assert_called_once_with("通知消息", "permission", "Notification")
+                mock_send.assert_called_once_with("通知消息", "permission", "Notification", cwd=None)
 
 
 class TestBuildPermissionRequestMessage:
