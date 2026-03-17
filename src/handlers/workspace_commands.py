@@ -85,29 +85,59 @@ class WorkspaceCommands:
         # 有参数：切换工作空间
         args = args.strip()
 
-        # 验证是否为数字
-        if not args.isdigit():
-            await self._send_error(
-                user_id,
-                f"无效输入: {args}\n请输入序号 (1-{len(workspaces)})",
-                send_message_func
-            )
-            return
+        # 尝试按数字序号匹配
+        if args.isdigit():
+            workspace_index = int(args)
 
-        workspace_index = int(args)
+            # 验证序号范围
+            if workspace_index < 1 or workspace_index > len(workspaces):
+                await self._send_error(
+                    user_id,
+                    f"无效序号: {workspace_index}\n请输入 1-{len(workspaces)} 之间的数字",
+                    send_message_func
+                )
+                return
 
-        # 验证序号范围
-        if workspace_index < 1 or workspace_index > len(workspaces):
-            await self._send_error(
-                user_id,
-                f"无效序号: {workspace_index}\n请输入 1-{len(workspaces)} 之间的数字",
-                send_message_func
-            )
-            return
+            # 获取目标工作空间
+            target = workspaces[workspace_index - 1]
+            target_path = target.get("path")
+        else:
+            # 按名称匹配（支持部分匹配，如 "github/larkode" 或 "larkode"）
+            matches = []
+            for ws in workspaces:
+                name = ws.get("name", "")
+                # 匹配名称或路径中包含输入字符串（不区分大小写）
+                if args.lower() in name.lower() or args.lower() in ws.get("path", "").lower():
+                    matches.append(ws)
 
-        # 获取目标工作空间
-        target = workspaces[workspace_index - 1]
-        target_path = target.get("path")
+            if not matches:
+                await self._send_error(
+                    user_id,
+                    f"未找到匹配的工作空间: {args}\n\n请使用 #ws <序号> 或 #ws <名称>",
+                    send_message_func
+                )
+                return
+
+            if len(matches) > 1:
+                # 多个匹配，显示总列表中的序号
+                # 找出每个匹配工作空间在总列表中的序号
+                options = []
+                for ws in matches:
+                    # 在总列表中查找序号
+                    for i, ws_total in enumerate(workspaces, 1):
+                        if ws_total.get('path') == ws.get('path'):
+                            options.append(f"{i}. {ws.get('name')}")
+                            break
+                await self._send_error(
+                    user_id,
+                    f"找到多个匹配的工作空间，请使用 #ws <序号> 选择：\n" + "\n".join(options),
+                    send_message_func
+                )
+                return
+
+            # 唯一匹配
+            target = matches[0]
+            target_path = target.get("path")
 
         # 切换工作空间
         success, message = workspace_manager.switch_workspace(target_path)
@@ -173,7 +203,7 @@ class WorkspaceCommands:
 🟢 = 正在运行
 **(默认)** = 配置文件中指定的默认工作空间
 
-💡 使用 `#ws <序号>` 切换工作空间
+💡 使用 `#ws <序号>` 或 `#ws <名称>` 切换工作空间
 """
 
         card = NormalizedCard(
