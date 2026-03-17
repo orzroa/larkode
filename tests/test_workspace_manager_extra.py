@@ -21,8 +21,8 @@ class TestWorkspaceManagerCoverage:
         session = manager._get_session_name("/home/user/project")
         assert session == "cc-home-user-project"
 
-        session = manager._get_session_name("/home/sc/Workspaces/test")
-        assert session == "cc-home-sc-Workspaces-test"
+        session = manager._get_session_name("/home/user/Workspaces/test")
+        assert session == "cc-home-user-Workspaces-test"
 
     def test_session_name_to_path(self):
         """测试 session 名称解析为路径"""
@@ -32,8 +32,8 @@ class TestWorkspaceManagerCoverage:
         path = manager._session_name_to_path("cc-home-user-project")
         assert path == "/home/user/project"
 
-        path = manager._session_name_to_path("cc-home-sc-Workspaces-test")
-        assert path == "/home/sc/Workspaces/test"
+        path = manager._session_name_to_path("cc-home-user-Workspaces-test")
+        assert path == "/home/user/Workspaces/test"
 
         # 无效的 session 名称
         path = manager._session_name_to_path("invalid-session")

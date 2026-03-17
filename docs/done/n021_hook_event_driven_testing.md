@@ -71,7 +71,7 @@ def test_my_custom_scenario(self):
   "hook_event": "UserPromptSubmit",
   "stdin_parsed": {
     "session_id": "2994d096-2063-4d9c-876d-8de1cfd9dc27",
-    "cwd": "/home/ubuntu/Workspaces/github/larkode",
+    "cwd": "/home/user/Workspaces/github/larkode",
     "hook_event_name": "UserPromptSubmit",
     "prompt": "用户输入的问题内容"
   }

@@ -252,7 +252,7 @@ class TestWorkspaceCommands:
                 card = call_kwargs.get('card')
                 assert card is not None
                 assert card.title == "错误"
-                assert "无效输入" in card.content
+                assert "未找到匹配的工作空间" in card.content
 
     @pytest.mark.asyncio
     async def test_handle_workspace_command_out_of_range(self):

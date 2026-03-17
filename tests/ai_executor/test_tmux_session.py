@@ -69,19 +69,19 @@ class TestTmuxSessionManagerInit:
 
     def test_init_with_dynamic_session_name(self, mock_settings):
         """测试根据 workspace 动态生成 session 名称"""
-        workspace = Path("/home/sc/Workspaces/myproject")
+        workspace = Path("/home/user/Workspaces/myproject")
 
         from src.ai_executor.tmux_session import TmuxSessionManager
         with patch('src.ai_executor.tmux_session.get_settings', return_value=mock_settings):
             with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
                 manager = TmuxSessionManager(workspace=workspace)
 
-                # session 名称应该是 "cc-home-sc-Workspaces-myproject"
-                assert manager._tmux_session == "cc-home-sc-Workspaces-myproject"
+                # session 名称应该是 "cc-home-user-Workspaces-myproject"
+                assert manager._tmux_session == "cc-home-user-Workspaces-myproject"
 
     def test_init_with_explicit_session_name(self, mock_settings):
         """测试显式指定 session 名称"""
-        workspace = Path("/home/sc/Workspaces/myproject")
+        workspace = Path("/home/user/Workspaces/myproject")
 
         from src.ai_executor.tmux_session import TmuxSessionManager
         with patch('src.ai_executor.tmux_session.get_settings', return_value=mock_settings):

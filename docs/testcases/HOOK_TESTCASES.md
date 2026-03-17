@@ -24,8 +24,8 @@ Hook 事件用于追踪 AI 交互过程，当前支持的三个核心事件：
 ```json
 {
   "session_id": "9238a715-434b-4107-9fbc-eaa3ec683680",
-  "transcript_path": "/home/sc/.claude/projects/-home-sc-Workspaces-github-claude-feishu/9238a715-434b-4107-9fbc-eaa3ec683680.jsonl",
-  "cwd": "/home/sc/Workspaces/github/claude-feishu",
+  "transcript_path": "/home/user/.claude/projects/-home-user-Workspaces-github-claude-feishu/9238a715-434b-4107-9fbc-eaa3ec683680.jsonl",
+  "cwd": "/home/user/Workspaces/github/claude-feishu",
   "permission_mode": "default",
   "hook_event_name": "UserPromptSubmit",
   "prompt": "帮我分析一下项目结构"
@@ -63,8 +63,8 @@ await send_feishu_notification(prompt, "prompt", "UserPromptSubmit")
 ```json
 {
   "session_id": "cb184412-45b1-476b-a061-3fc249ecd3cc",
-  "transcript_path": "/home/sc/.claude/projects/-home-sc-Workspaces-github-claude-feishu/cb184412-45b1-476b-a061-3fc249ecd3cc.jsonl",
-  "cwd": "/home/sc/Workspaces/github/claude-feishu",
+  "transcript_path": "/home/user/.claude/projects/-home-user-Workspaces-github-claude-feishu/cb184412-45b1-476b-a061-3fc249ecd3cc.jsonl",
+  "cwd": "/home/user/Workspaces/github/claude-feishu",
   "permission_mode": "default",
   "hook_event_name": "Stop",
   "stop_hook_active": false,
@@ -105,13 +105,13 @@ await send_feishu_notification(message, "stop", "Stop")
 ```json
 {
   "session_id": "1198cb83-ed15-4668-a802-a02827a837ec",
-  "transcript_path": "/home/ubuntu/.claude/projects/-home-ubuntu-Workspaces-github-claude-feishu/1198cb83-ed15-4668-a802-a02827a837ec.jsonl",
-  "cwd": "/home/ubuntu/Workspaces/github/claude-feishu",
+  "transcript_path": "/home/user/.claude/projects/-home-user-Workspaces-github-claude-feishu/1198cb83-ed15-4668-a802-a02827a837ec.jsonl",
+  "cwd": "/home/user/Workspaces/github/claude-feishu",
   "permission_mode": "default",
   "hook_event_name": "PermissionRequest",
   "tool_name": "Bash",
   "tool_input": {
-    "command": "rm -rf /home/ubuntu/Workspaces/github/claude-feishu/abc",
+    "command": "rm -rf /home/user/Workspaces/github/claude-feishu/abc",
     "description": "删除 abc 目录及其所有内容"
   }
 }
@@ -122,7 +122,7 @@ await send_feishu_notification(message, "stop", "Stop")
 ```json
 {
   "session_id": "xxx",
-  "cwd": "/home/ubuntu/project",
+  "cwd": "/home/user/project",
   "permission_mode": "default",
   "hook_event_name": "PermissionRequest",
   "tool_name": "AskUserQuestion",
@@ -148,7 +148,7 @@ await send_feishu_notification(message, "stop", "Stop")
 ```json
 {
   "session_id": "xxx",
-  "cwd": "/home/ubuntu/project",
+  "cwd": "/home/user/project",
   "permission_mode": "plan",
   "hook_event_name": "PermissionRequest",
   "tool_name": "ExitPlanMode",

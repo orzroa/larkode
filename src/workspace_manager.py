@@ -232,7 +232,7 @@ class WorkspaceManager:
                 session_name, session_path = parts
 
                 # 支持两种格式的 session 名称：
-                # 1. cc-home-sc-Workspaces-github-larkode (新格式)
+                # 1. cc-home-user-Workspaces-github-larkode (新格式)
                 # 2. cc (旧格式，需要从 session_path 获取路径)
                 if session_name.startswith('cc-'):
                     # 新格式：从 session 名称解析路径
@@ -261,10 +261,10 @@ class WorkspaceManager:
             workspace_path: 工作空间路径
 
         Returns:
-            session 名称（如 cc-home-sc-Workspaces-github-larkode）
+            session 名称（如 cc-home-user-Workspaces-github-larkode）
         """
         # 将路径转换为 session 名称
-        # /home/sc/Workspaces/github/larkode -> cc-home-sc-Workspaces-github-larkode
+        # /home/user/Workspaces/github/larkode -> cc-home-user-Workspaces-github-larkode
         path_str = workspace_path.strip('/')
         session_name = f"cc-{path_str.replace('/', '-')}"
         return session_name
@@ -282,7 +282,7 @@ class WorkspaceManager:
         if not session_name.startswith('cc-'):
             return None
 
-        # cc-home-sc-Workspaces-github-larkode -> /home/sc/Workspaces/github/larkode
+        # cc-home-user-Workspaces-github-larkode -> /home/user/Workspaces/github/larkode
         path_part = session_name[3:]  # 去掉 'cc-'
         path = '/' + path_part.replace('-', '/')
         return path

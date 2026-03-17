@@ -88,10 +88,10 @@ class TmuxSessionManager:
             workspace_path: 工作空间路径
 
         Returns:
-            session 名称（如 cc-home-sc-Workspaces-github-larkode）
+            session 名称（如 cc-home-user-Workspaces-github-larkode）
         """
         # 将路径转换为 session 名称
-        # /home/sc/Workspaces/github/larkode -> cc-home-sc-Workspaces-github-larkode
+        # /home/user/Workspaces/github/larkode -> cc-home-user-Workspaces-github-larkode
         path_str = workspace_path.strip('/')
         session_name = f"cc-{path_str.replace('/', '-')}"
         return session_name

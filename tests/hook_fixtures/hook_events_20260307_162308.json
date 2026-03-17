@@ -10,7 +10,7 @@
       "prompt": "",
       "last_assistant_message": "工作区是干净的。代码已经在之前的提交中全部推送了。",
       "session_id": "900e861a-cfae-4317-bc85-afd1cde96d67",
-      "cwd": "/home/ubuntu/Workspaces/github/larkode"
+      "cwd": "/home/user/Workspaces/github/larkode"
     },
     {
       "hook_event": "Stop",
@@ -20,7 +20,7 @@
       "prompt": "",
       "last_assistant_message": "工作区是干净的。代码已经在之前的提交中全部推送了。",
       "session_id": "900e861a-cfae-4317-bc85-afd1cde96d67",
-      "cwd": "/home/ubuntu/Workspaces/github/larkode"
+      "cwd": "/home/user/Workspaces/github/larkode"
     },
     {
       "hook_event": "UserPromptSubmit",
@@ -30,7 +30,7 @@
       "prompt": "到 plan mode 下面触发一个问题给我",
       "last_assistant_message": "",
       "session_id": "900e861a-cfae-4317-bc85-afd1cde96d67",
-      "cwd": "/home/ubuntu/Workspaces/github/larkode"
+      "cwd": "/home/user/Workspaces/github/larkode"
     },
     {
       "hook_event": "UserPromptSubmit",
@@ -40,7 +40,7 @@
       "prompt": "到 plan mode 下面触发一个问题给我",
       "last_assistant_message": "",
       "session_id": "900e861a-cfae-4317-bc85-afd1cde96d67",
-      "cwd": "/home/ubuntu/Workspaces/github/larkode"
+      "cwd": "/home/user/Workspaces/github/larkode"
     },
     {
       "hook_event": "PermissionRequest",
@@ -52,7 +52,7 @@
       "prompt": "",
       "last_assistant_message": "",
       "session_id": "900e861a-cfae-4317-bc85-afd1cde96d67",
-      "cwd": "/home/ubuntu/Workspaces/github/larkode"
+      "cwd": "/home/user/Workspaces/github/larkode"
     },
     {
       "hook_event": "PermissionRequest",
@@ -64,7 +64,7 @@
       "prompt": "",
       "last_assistant_message": "",
       "session_id": "900e861a-cfae-4317-bc85-afd1cde96d67",
-      "cwd": "/home/ubuntu/Workspaces/github/larkode"
+      "cwd": "/home/user/Workspaces/github/larkode"
     },
     {
       "hook_event": "Stop",
@@ -74,7 +74,7 @@
       "prompt": "",
       "last_assistant_message": "所有 317 个测试通过（增加了 9 个，因为 ExitPlanMode 的处理逻辑被其他测试覆盖到了）。\n\n修复完成！现在的逻辑是：\n\n## 修复总结\n\n### 问题\n当用户在 Plan Mode 下使用 `ExitPlanMode` 时，系统没有显示 Plan 内容请求确认，而是显示了 tmux 输出。\n\n### 修复方案\n在 `_build_permission_content` 函数中添加了 `ExitPlanMode` 的专门处理逻辑：\n\n```python\nelif tool_name == \"ExitPlanMode\":\n    # ExitPlanMode: 显示 Plan 内容并请求用户确认\n    plan = tool_input.get(\"plan\", \"\")\n    if plan:\n        # 截断过长的 plan 内容\n        max_length = 1000\n        if len(plan) > max_length:\n            plan = plan[:max_length] + \"\\n\\n... (内容过长，已截断)\"\n        return f\"**退出 Plan Mode 确认**\\n\\n当前 Plan 内容：\\n\\n{plan}\\n\\n是否确认退出？\"\n    else:\n        return \"**退出 Plan Mode 确认**\\n\\n是否确认退出当前 Plan？\"\n```\n\n### 现在的行为\n1. **AskUserQuestion** - 显示选项列表（单选/多选）\n2. **ExitPlanMode** - 显示 Plan 内容并请求退出确认\n3. **其他工具（如 Bash）** - 显示 tmux 输出\n\n### 测试结果\n- ✅ 所有 317 个测试通过\n- ✅ ExitPlanMode 测试验证通过\n- ✅ 原有功能未被破坏",
       "session_id": "2994d096-2063-4d9c-876d-8de1cfd9dc27",
-      "cwd": "/home/ubuntu/Workspaces/github/larkode"
+      "cwd": "/home/user/Workspaces/github/larkode"
     },
     {
       "hook_event": "Stop",
@@ -84,7 +84,7 @@
       "prompt": "",
       "last_assistant_message": "所有 317 个测试通过（增加了 9 个，因为 ExitPlanMode 的处理逻辑被其他测试覆盖到了）。\n\n修复完成！现在的逻辑是：\n\n## 修复总结\n\n### 问题\n当用户在 Plan Mode 下使用 `ExitPlanMode` 时，系统没有显示 Plan 内容请求确认，而是显示了 tmux 输出。\n\n### 修复方案\n在 `_build_permission_content` 函数中添加了 `ExitPlanMode` 的专门处理逻辑：\n\n```python\nelif tool_name == \"ExitPlanMode\":\n    # ExitPlanMode: 显示 Plan 内容并请求用户确认\n    plan = tool_input.get(\"plan\", \"\")\n    if plan:\n        # 截断过长的 plan 内容\n        max_length = 1000\n        if len(plan) > max_length:\n            plan = plan[:max_length] + \"\\n\\n... (内容过长，已截断)\"\n        return f\"**退出 Plan Mode 确认**\\n\\n当前 Plan 内容：\\n\\n{plan}\\n\\n是否确认退出？\"\n    else:\n        return \"**退出 Plan Mode 确认**\\n\\n是否确认退出当前 Plan？\"\n```\n\n### 现在的行为\n1. **AskUserQuestion** - 显示选项列表（单选/多选）\n2. **ExitPlanMode** - 显示 Plan 内容并请求退出确认\n3. **其他工具（如 Bash）** - 显示 tmux 输出\n\n### 测试结果\n- ✅ 所有 317 个测试通过\n- ✅ ExitPlanMode 测试验证通过\n- ✅ 原有功能未被破坏",
       "session_id": "2994d096-2063-4d9c-876d-8de1cfd9dc27",
-      "cwd": "/home/ubuntu/Workspaces/github/larkode"
+      "cwd": "/home/user/Workspaces/github/larkode"
     },
     {
       "hook_event": "UserPromptSubmit",
@@ -94,7 +94,7 @@
       "prompt": "我有一个想法，就是那个hook 你有没有模拟的报文？那个STD in的报文，我们直接拿这个东西测，现在在他那个东西，到这种场景之下调不成功，测起来就非常的麻烦，你也没有办法自动化测试，对不对？你你就自己搞嘛，你搞到他的那个报文，各种各样的报文，Stdin的，stdout的。输入，然后你拿这个输入，你自己去做测试，你想怎么测就怎么测，多方便啊",
       "last_assistant_message": "",
       "session_id": "2994d096-2063-4d9c-876d-8de1cfd9dc27",
-      "cwd": "/home/ubuntu/Workspaces/github/larkode"
+      "cwd": "/home/user/Workspaces/github/larkode"
     },
     {
       "hook_event": "UserPromptSubmit",
@@ -104,7 +104,7 @@
       "prompt": "我有一个想法，就是那个hook 你有没有模拟的报文？那个STD in的报文，我们直接拿这个东西测，现在在他那个东西，到这种场景之下调不成功，测起来就非常的麻烦，你也没有办法自动化测试，对不对？你你就自己搞嘛，你搞到他的那个报文，各种各样的报文，Stdin的，stdout的。输入，然后你拿这个输入，你自己去做测试，你想怎么测就怎么测，多方便啊",
       "last_assistant_message": "",
       "session_id": "2994d096-2063-4d9c-876d-8de1cfd9dc27",
-      "cwd": "/home/ubuntu/Workspaces/github/larkode"
+      "cwd": "/home/user/Workspaces/github/larkode"
     }
   ]
 }

@@ -134,16 +134,16 @@ class TestWorkspaceManager:
         manager = WorkspaceManager()
 
         # 测试路径转 session 名称
-        session_name = manager._get_session_name("/home/sc/Workspaces/github/larkode")
-        assert session_name == "cc-home-sc-Workspaces-github-larkode"
+        session_name = manager._get_session_name("/home/user/Workspaces/github/larkode")
+        assert session_name == "cc-home-user-Workspaces-github-larkode"
 
     def test_session_name_to_path(self):
         """测试从 session 名称解析路径"""
         manager = WorkspaceManager()
 
         # 测试 session 名称转路径
-        path = manager._session_name_to_path("cc-home-sc-Workspaces-github-larkode")
-        assert path == "/home/sc/Workspaces/github/larkode"
+        path = manager._session_name_to_path("cc-home-user-Workspaces-github-larkode")
+        assert path == "/home/user/Workspaces/github/larkode"
 
         # 测试非 cc- 开头的 session
         path = manager._session_name_to_path("other-session")

@@ -89,7 +89,7 @@ class WorkspaceFormatter(logging.Formatter):
 
             if workspace_path:
                 # 从路径中提取最后一部分作为名称
-                # 例如: /home/sc/Workspaces/github/larkode -> larkode
+                # 例如: /home/user/Workspaces/github/larkode -> larkode
                 return Path(workspace_path).name
             else:
                 return "default"
