@@ -79,7 +79,7 @@ class TaskManager:
                 logger.error("无法创建 AI 助手实例，使用旧的实现")
 
                 from src.ai_executor import AIInterface, TmuxAIExecutor
-                tmux_executor = TmuxAIExecutor(workspace)
+                tmux_executor = TmuxAIExecutor()  # 不固定 workspace，让执行器动态获取
                 assistant = AIInterface()
                 assistant.executor = tmux_executor
 
