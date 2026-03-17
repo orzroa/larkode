@@ -15,8 +15,8 @@
 | 🔌 **多 AI 支持** | 支持 Claude Code、iFlow，工厂模式易于扩展新助手 |
 | 💬 **多 IM 框架** | 架构支持多 IM 平台，可适配Slack、钉钉等IM 框架  |
 | 🎛️ **CCR 支持** | 内置对 Claude Code Router 的支持，手机端随时切换模型 |
-| 🔧 **智能配置** | 工作空间路径支持环境变量展开（$HOME、~、${VAR}），配置更灵活 |
-| ✅ **高测试覆盖** | 单元测试 + 集成测试，完整测试体系 |
+| 📁 **工作空间自动发现** | 自动扫描工作空间目录，支持按序号/名称快速切换，无需手动配置每个项目 |
+| ✅ **~80% 测试覆盖** | 单元测试 + 集成测试，完整测试体系保障代码质量 |
 
 ---
 
@@ -120,11 +120,31 @@ AI_ASSISTANT_TYPE=claude_code
 
 这让配置更加灵活，无需硬编码绝对路径。
 
-**第 4 步：配置 AI 主动通知（可选）**
+**第 4 步：配置工作空间自动发现（可选）**
+
+启用后，你可以用 `#ws` 命令快速查看和切换工作空间，无需手动配置每个项目路径。
+
+在 `.env` 文件中配置：
+
+```env
+# 启用工作空间自动发现
+WORKSPACE_DISCOVERY_ENABLED=true
+
+# 工作空间根目录
+WORKSPACE_ROOT_DIR=$HOME/Workspaces
+
+# 扫描深度（默认2层）
+WORKSPACE_DISCOVERY_DEPTH=2
+
+# 默认工作空间（可选）
+WORKSPACE_DEFAULT_DIR=$HOME/Workspaces/larkode
+```
+
+**第 5 步：配置 AI 主动通知（可选）**
 
 配置后，AI 完成任务或需要确认时会主动通知你。
 
-4.1 获取你的飞书用户 ID：
+5.1 获取你的飞书用户 ID：
 
 > 详细方法见：[飞书官方文档 - 获取 openId](https://open.feishu.cn/document/faq/trouble-shooting/how-to-obtain-openid)
 
@@ -133,14 +153,14 @@ AI_ASSISTANT_TYPE=claude_code
 3. 在查询参数中将 **user_id_type** 设置为 **open_id**
 4. 搜索或选择指定用户，点击「复制成员 ID」获取 open_id（格式如 `ou_xxxxx`）
 
-4.2 配置环境变量：
+5.2 配置环境变量：
 
 ```bash
 # 在 .env 文件中添加
 FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
 ```
 
-4.3 配置 Claude Code 设置：
+5.3 配置 Claude Code 设置：
 
 编辑 `~/.claude/settings.json`，添加 hooks 配置：
 
@@ -186,6 +206,7 @@ FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
 | `#history [数量]` | 查看历史消息（默认10条） |
 | `#shot [行数]` | 查看截屏（默认200行，如 `#shot 500`） |
 | `#model [序号]` | 查看或切换模型（无参数显示列表） |
+| `#ws [序号/名称]` | 查看或切换工作空间（自动发现项目列表） |
 
 ### 3.2 使用示例
 
@@ -204,6 +225,19 @@ AI: [显示最近20条历史消息]
 
 用户: #shot 500
 AI: [显示最近500行的截屏]
+
+用户: #ws
+AI: [显示所有工作空间列表，支持序号/名称切换]
+   例如：
+   1. /home/user/project-alpha
+   2. /home/user/project-beta
+   3. /home/user/awesome-repo
+
+用户: #ws 2
+AI: [切换到 project-beta 工作空间]
+
+用户: #ws larkode
+AI: [切换到名称包含 "larkode" 的工作空间]
 ```
 
 ---
@@ -320,8 +354,8 @@ Integrate Feishu (Lark) with AI assistants via WebSocket long connections. The s
 | 🔌 **Multi-AI Support** | Supports Claude Code, iFlow - factory pattern makes adding new assistants easy |
 | 💬 **Multi-IM Framework** | Architecture supports multiple IM platforms - easy to extend |
 | 🎛️ **CCR Support** | Built-in support for Claude Code Router - switch models anytime from mobile |
-| 🔧 **Smart Configuration** | Workspace paths support environment variable expansion ($HOME, ~, ${VAR}) for flexible configuration |
-| ✅ **High Test Coverage** | Unit tests + integration tests, complete testing system |
+| 📁 **Auto Workspace Discovery** | Automatically scan workspace directories, quick switch by index/name without manual configuration |
+| ✅ **~80% Test Coverage** | Unit tests + integration tests with comprehensive coverage to ensure code quality |
 
 ---
 
@@ -425,11 +459,31 @@ Workspace path configurations (`WORKSPACE_ROOT_DIR`, `WORKSPACE_DEFAULT_DIR`) su
 
 This makes configuration more flexible without hardcoding absolute paths.
 
-**Step 4: Configure AI proactive notifications (optional)**
+**Step 4: Configure Auto Workspace Discovery (optional)**
+
+Once enabled, you can use `#ws` command to quickly view and switch workspaces without manually configuring each project path.
+
+Configure in `.env` file:
+
+```env
+# Enable workspace auto discovery
+WORKSPACE_DISCOVERY_ENABLED=true
+
+# Workspace root directory
+WORKSPACE_ROOT_DIR=$HOME/Workspaces
+
+# Scan depth (default 2)
+WORKSPACE_DISCOVERY_DEPTH=2
+
+# Default workspace (optional)
+WORKSPACE_DEFAULT_DIR=$HOME/Workspaces/larkode
+```
+
+**Step 5: Configure AI proactive notifications (optional)**
 
 Once configured, AI will proactively notify you when tasks complete or confirmation is needed.
 
-4.1 Get your Feishu user ID:
+5.1 Get your Feishu user ID:
 
 > See [Feishu Official Docs - Get openId](https://open.feishu.cn/document/faq/trouble-shooting/how-to-obtain-openid) for detailed methods.
 
@@ -438,14 +492,14 @@ Once configured, AI will proactively notify you when tasks complete or confirmat
 3. In query parameters, set **user_id_type** to **open_id**
 4. Search and select the user, click "Copy Member ID" to get open_id (format like `ou_xxxxx`)
 
-4.2 Configure environment variable:
+5.2 Configure environment variable:
 
 ```bash
 # Add to .env file
 FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
 ```
 
-4.3 Configure Claude Code settings:
+5.3 Configure Claude Code settings:
 
 Edit `~/.claude/settings.json`, add hooks configuration:
 
@@ -491,6 +545,7 @@ Edit `~/.claude/settings.json`, add hooks configuration:
 | `#history [count]` | View message history (default 10) |
 | `#shot [lines]` | View screenshot (default 200, e.g., `#shot 500`) |
 | `#model [index]` | View or switch model (no arg shows list) |
+| `#ws [index/name]` | View or switch workspace (auto-discover project list) |
 
 ### 3.2 Usage Examples
 
@@ -509,6 +564,19 @@ AI: [Shows last 20 messages]
 
 User: #shot 500
 AI: [Shows last 500 lines screenshot]
+
+User: #ws
+AI: [Shows all workspace list, supports index/name switch]
+   Example:
+   1. /home/user/project-alpha
+   2. /home/user/project-beta
+   3. /home/user/awesome-repo
+
+User: #ws 2
+AI: [Switches to project-beta workspace]
+
+User: #ws larkode
+AI: [Switches to workspace containing "larkode"]
 ```
 
 ---
