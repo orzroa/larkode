@@ -59,7 +59,7 @@ def get_tmux_last_lines(lines: int = 200, workspace: Optional[str] = None) -> st
         # 使用 -S -<行数> 直接获取最后 N 行
         capture_cmd = [
             "tmux", "capture-pane", "-p", "-t",
-            f"{session_name}", "-e", "-S", f"-{lines}"
+            f"{session_name}:0.0", "-e", "-S", f"-{lines}"
         ]
         result = subprocess.run(capture_cmd, capture_output=True, text=True)
 
