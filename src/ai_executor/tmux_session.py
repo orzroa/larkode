@@ -198,15 +198,15 @@ class TmuxSessionManager:
                 logger.debug(f"  → tmux session '{self._tmux_session}' 没有 pane")
                 return False
 
-            pane_pid = result.stdout.strip()
-            logger.debug(f"  → pane_pid: {pane_pid}")
+            # tmux list-panes 按 pane_index 排序，index=0 的 pane 总是第一个（主 pane）
+            pane_pid = result.stdout.strip().split('\n')[0]
+            logger.debug(f"  → pane_pid (first pane): {pane_pid}")
 
-            # 从 pane_pid 向下查找所有子进程（更高效）
+            # 从 pane_pid 向下查找所有子进程
             try:
                 parent = psutil.Process(int(pane_pid))
                 for child in parent.children(recursive=True):
                     try:
-                        # 使用 psutil 方法而非 .info 属性（兼容不同版本）
                         cmdline = child.cmdline() or []
                         cmdline_str = ' '.join(cmdline).lower()
                         name = child.name() or ''
@@ -317,7 +317,7 @@ class TmuxSessionManager:
             # 发送启动 AI 的命令到 tmux session
             # 使用环境变量标记这是启动命令，让 hook 忽略
             cmd = [
-                "tmux", "send-keys", "-t", f"{self._tmux_session}:0",
+                "tmux", "send-keys", "-t", f"{self._tmux_session}:0.0",
                 f"CLAUDE_STARTUP=1 {self._cli_path}"
             ]
             logger.info(f"  → tmux send-keys: {' '.join(cmd)}")
@@ -325,7 +325,7 @@ class TmuxSessionManager:
 
             # 发送回车执行
             subprocess.run(
-                ["tmux", "send-keys", "-t", f"{self._tmux_session}:0", "C-m"],
+                ["tmux", "send-keys", "-t", f"{self._tmux_session}:0.0", "C-m"],
                 check=True
             )
 
@@ -371,12 +371,12 @@ class TmuxSessionManager:
 
             # 发送命令到 tmux session
             # 先 C-u 清除当前输入行，然后发送命令
-            clear_cmd = ["tmux", "send-keys", "-t", f"{self._tmux_session}", "C-u"]
+            clear_cmd = ["tmux", "send-keys", "-t", f"{self._tmux_session}:0.0", "C-u"]
             subprocess.run(clear_cmd, capture_output=True)
 
             # 发送命令
             send_cmd = [
-                "tmux", "send-keys", "-t", f"{self._tmux_session}",
+                "tmux", "send-keys", "-t", f"{self._tmux_session}:0.0",
                 command
             ]
             subprocess.run(send_cmd, capture_output=True)
@@ -385,7 +385,7 @@ class TmuxSessionManager:
             # 实测得到，只能人工调整
             for _ in range(2):
                 time.sleep(AI_READY_POLL_INTERVAL)
-                subprocess.run(["tmux", "send-keys", "-t", f"{self._tmux_session}", "C-m"], capture_output=True)
+                subprocess.run(["tmux", "send-keys", "-t", f"{self._tmux_session}:0.0", "C-m"], capture_output=True)
 
             # 发送完成后直接返回，不等待输出
             yield f"命令已发送到 AI"
@@ -476,7 +476,7 @@ class TmuxSessionManager:
                 # 捕获 tmux 输出：始终保持最新 N 行（由配置决定）
                 try:
                     result = subprocess.run(
-                        ["tmux", "capture-pane", "-t", self._tmux_session, "-S", f"-{capture_lines}", "-p"],
+                        ["tmux", "capture-pane", "-t", f"{self._tmux_session}:0.0", "-S", f"-{capture_lines}", "-p"],
                         capture_output=True,
                         text=True
                     )
