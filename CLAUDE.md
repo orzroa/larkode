@@ -19,6 +19,7 @@ larkode/
 │   ├── im_platforms/        # Multi-platform IM support (Feishu, Slack)
 │   ├── interfaces/          # Interface definitions
 │   ├── factories/           # Factory classes
+│   ├── minimax/             # MiniMax multimedia capabilities (#mm commands)
 │   ├── models/              # Data models
 │   ├── storage/             # Data persistence (SQLite)
 │   └── utils/               # Utility functions
@@ -70,6 +71,11 @@ uv run pytest tests/ -v -n0 --ignore=tests/integration/
 - `CARD_MAX_LENGTH` - Max card message length (default 1500)
 - `TASK_TIMEOUT` - Task timeout in seconds (default 300)
 - `DB_PATH` - SQLite database path (default `./data/larkode.db`)
+
+**MiniMax Configuration**
+- `MINIMAX_API_KEY` - MiniMax API key
+- `MINIMAX_GROUP_ID` - MiniMax group ID
+- `MINIMAX_ENABLED` - Enable MiniMax features (default true)
 
 **Note**: See README.md for Feishu bot permissions (应用身份).
 
@@ -130,6 +136,12 @@ uv run pytest tests/ -v -n0 --ignore=tests/integration/
 14. **`src/hook_handler.py`** - Claude Code Hooks
     - Captures `UserPromptSubmit`, `Stop`, `Notification` events
     - Sends Feishu notifications on key events
+
+15. **`src/minimax/`** - MiniMax multimedia capabilities
+    - `MiniMaxClient` - API client (image/video/tts/music generation)
+    - `MiniMaxCommands` - Command parser (`#mm img`, `#mm t2v`, etc.)
+    - `MiniMaxFeishuDelivery` - Result delivery to Feishu
+    - `capabilities/` - Capability handlers (ImageGen, VideoGen, VoiceTTS, MusicGen)
 
 ## Message Flow
 

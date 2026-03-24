@@ -208,6 +208,19 @@ FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
 | `#model [序号]` | 查看或切换模型（无参数显示列表） |
 | `#ws [序号/名称]` | 查看或切换工作空间（自动发现项目列表） |
 
+#### MiniMax 多媒体命令 (`#mm`)
+
+需要配置 `MINIMAX_API_KEY` 和 `MINIMAX_GROUP_ID` 环境变量。
+
+| 命令 | 说明 |
+|------|------|
+| `#mm help` | 显示 MiniMax 帮助 |
+| `#mm img <提示词>` | 文生图 |
+| `#mm t2v <提示词>` | 文生视频 |
+| `#mm p2v <提示词>` | 图生视频（先上传图片再用此命令） |
+| `#mm tts <文字>` | 文字转语音 |
+| `#mm music <风格> <歌词>` | 文生音乐（必须提供歌词） |
+
 ### 3.2 使用示例
 
 ```
@@ -546,6 +559,19 @@ Edit `~/.claude/settings.json`, add hooks configuration:
 | `#shot [lines]` | View screenshot (default 200, e.g., `#shot 500`) |
 | `#model [index]` | View or switch model (no arg shows list) |
 | `#ws [index/name]` | View or switch workspace (auto-discover project list) |
+
+#### MiniMax Multimedia Commands (`#mm`)
+
+Requires `MINIMAX_API_KEY` and `MINIMAX_GROUP_ID` environment variables.
+
+| Command | Description |
+|---------|-------------|
+| `#mm help` | Show MiniMax help |
+| `#mm img <prompt>` | Text to image |
+| `#mm t2v <prompt>` | Text to video |
+| `#mm p2v <prompt>` | Image to video (upload image first) |
+| `#mm tts <text>` | Text to speech |
+| `#mm music <style> <lyrics>` | Text to music (lyrics required) |
 
 ### 3.2 Usage Examples
 
