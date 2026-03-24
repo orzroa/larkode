@@ -167,7 +167,7 @@ class MiniMaxClient:
         self,
         prompt: str,
         image_path: str,
-        model: str = "S2V-01",
+        model: str = "MiniMax-Hailuo-2.3-Fast",
         **kwargs,
     ) -> str:
         """
@@ -175,7 +175,7 @@ class MiniMaxClient:
 
         Args:
             prompt: 提示词
-            image_path: 图片路径
+            image_path: 图片路径（本地路径、URL 或 Base64）
             model: 模型名称
 
         Returns:
@@ -183,28 +183,68 @@ class MiniMaxClient:
         """
         client = self._get_client()
 
-        # multipart 上传
-        with open(image_path, "rb") as f:
-            image_data = f.read()
+        # 判断输入类型并转换为合适的格式
+        if image_path.startswith("http://") or image_path.startswith("https://"):
+            # URL 格式，直接使用
+            first_frame_image = image_path
+        elif image_path.startswith("data:image"):
+            # 已经是 Base64 格式
+            first_frame_image = image_path
+        else:
+            # 本地文件，转换为 Base64
+            import base64
+            with open(image_path, "rb") as f:
+                image_data = f.read()
 
-        files = {"file": (Path(image_path).name, image_data, "image/jpeg")}
-        data = {
+            # 检测图片类型
+            if image_path.lower().endswith(".png"):
+                mime_type = "image/png"
+            elif image_path.lower().endswith(".webp"):
+                mime_type = "image/webp"
+            else:
+                mime_type = "image/jpeg"
+
+            b64_data = base64.b64encode(image_data).decode("utf-8")
+            first_frame_image = f"data:{mime_type};base64,{b64_data}"
+
+        # 使用 first_frame_image 参数（Hailuo 系列模型）
+        payload = {
             "model": model,
             "prompt": prompt,
+            "first_frame_image": first_frame_image,
             **kwargs,
         }
-
-        headers = {"Authorization": f"Bearer {self.api_key}"}
-        async with httpx.AsyncClient(base_url=BASE_URL, headers=headers, timeout=120.0) as c:
-            response = await c.post("/v1/video_generation", data=data, files=files)
-        result = self._handle_response(response)
-        return result.get("task_id", "")
+        response = await client.post("/v1/video_generation", json=payload)
+        data = self._handle_response(response)
+        return data.get("task_id", "")
 
     async def get_video_task_result(self, task_id: str) -> Dict[str, Any]:
         """查询视频生成任务结果"""
         client = self._get_client()
-        response = await client.get(f"/v1/video_generation/{task_id}")
+        # 正确的查询端点是 /v1/query/video_generation?task_id=xxx
+        response = await client.get(f"/v1/query/video_generation?task_id={task_id}")
         return self._handle_response(response)
+
+    async def retrieve_file(self, file_id: str) -> Dict[str, Any]:
+        """
+        获取文件下载 URL
+
+        Args:
+            file_id: 文件 ID（从视频生成任务结果中获取）
+
+        Returns:
+            {"download_url": "...", "filename": "...", "bytes": ...}
+        """
+        client = self._get_client()
+        response = await client.get(f"/v1/files/retrieve?file_id={file_id}")
+        data = self._handle_response(response)
+        file_info = data.get("file", {})
+        return {
+            "download_url": file_info.get("download_url", ""),
+            "filename": file_info.get("filename", ""),
+            "bytes": file_info.get("bytes", 0),
+            "file_id": file_info.get("file_id"),
+        }
 
     # ==================== TTS ====================
 

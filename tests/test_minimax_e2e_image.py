@@ -15,12 +15,19 @@ MiniMax 端到端测试
 注意：
 - base URL: https://api.minimaxi.com（不是 api.minimax.io）
 - TTS 可用 voice: male-qn-qingse, English_expressive_narrator 等
+
+运行方式：
+    # 默认跳过，需要显式指定 -m e2e 才运行
+    uv run pytest tests/test_minimax_e2e_image.py -v -m e2e -s
 """
 import os
 import time
 import pytest
 import tempfile
 from pathlib import Path
+
+# 标记为 e2e 测试，默认跳过
+pytestmark = pytest.mark.e2e
 
 MINIMAX_API_KEY = os.environ.get("MINIMAX_API_KEY", "")
 MINIMAX_GROUP_ID = os.environ.get("MINIMAX_GROUP_ID", "")

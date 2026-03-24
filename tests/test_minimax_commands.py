@@ -83,7 +83,10 @@ class TestMiniMaxCommands:
         mock_client.text_to_video = AsyncMock(return_value="video-task-123")
 
         await commands.handle_command("user-123", "t2v 日出时分海面波光粼粼")
-        mock_client.text_to_video.assert_called_once_with(prompt="日出时分海面波光粼粼")
+        mock_client.text_to_video.assert_called_once_with(
+            prompt="日出时分海面波光粼粼",
+            model="MiniMax-Hailuo-2.3"
+        )
 
     @pytest.mark.asyncio
     async def test_music_command(self, commands, mock_client, mock_delivery):

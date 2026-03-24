@@ -28,6 +28,7 @@ HELP_TEXT = """
 
 🎬 **视频生成**
 • `#mm t2v <提示词>` — 文生视频
+• `#mm p2v <提示词>` — 图生视频（先上传图片，再用此命令）
 
 🔊 **语音合成**
 • `#mm tts <文字>` — 文字转语音
@@ -82,6 +83,8 @@ class MiniMaxCommands:
             await self.image_cap.text_to_image(user_id, args)
         elif cmd == "t2v":
             await self.video_cap.text_to_video(user_id, args)
+        elif cmd == "p2v":
+            await self.video_cap.image_to_video(user_id, args)
         elif cmd == "tts":
             await self.voice_cap.text_to_speech(user_id, args)
         elif cmd == "music":

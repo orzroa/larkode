@@ -97,6 +97,11 @@ class AttachmentHandler:
                 await self._send_error(user_id, "下载图片失败")
                 return
 
+            # 缓存用户最近上传的图片（用于 p2v 图生视频）
+            from src.minimax import set_user_image
+            set_user_image(user_id, str(image_path), "")  # URL 暂时为空，使用 Base64
+            logger.info(f"已缓存用户图片，用于 p2v: {image_path}")
+
             # 将图片路径作为命令传递给 AI 助手
             command = f"Read the image at {image_path}"
 
@@ -150,6 +155,11 @@ class AttachmentHandler:
             if not image_path:
                 await self._send_error(user_id, "下载图片失败")
                 return
+
+            # 缓存用户最近上传的图片（用于 p2v 图生视频）
+            from src.minimax import set_user_image
+            set_user_image(user_id, str(image_path), "")  # URL 暂时为空，使用 Base64
+            logger.info(f"已缓存用户图片，用于 p2v: {image_path}")
 
             # 将图片路径作为命令传递给 AI 助手
             command = f"Read the image at {image_path}"
