@@ -15,6 +15,9 @@ from src.feishu.exceptions import (
 from src.feishu.file_ops import (
     download_file,
     upload_file,
+    upload_image,
+    upload_audio,
+    upload_video,
     send_file_message,
 )
 

@@ -66,6 +66,10 @@ class MusicGenCapability:
             )
             return
 
+        # MiniMax API 要求 prompt 至少 10 个字符
+        if len(style) < 10:
+            style = f"{style}风格，音乐优雅动听"
+
         progress_msg = f"🎵 正在生成音乐...\n\n风格：{style}\n歌词：{lyrics[:50]}{'...' if len(lyrics) > 50 else ''}\n\n预计需要 1-3 分钟"
         await self.delivery.send_progress(user_id, progress_msg)
 
@@ -77,23 +81,26 @@ class MusicGenCapability:
             )
             logger.info(f"音乐生成结果: {result}")
 
-            # 提取音乐 URL
-            audio_url = (
-                result.get("audio_url")
-                or result.get("music_url")
-                or result.get("data", {}).get("audio_url", "")
-            )
+            # 提取音乐 URL - 在 data.audio 字段中
+            data = result.get("data", {})
+            audio_url = data.get("audio", "")
+            extra_info = result.get("extra_info", {})
 
             if audio_url:
+                duration_sec = extra_info.get("music_duration", 0) / 1000
+                logger.info(f"音乐生成成功: 时长 {duration_sec:.1f}秒, URL: {audio_url[:60]}...")
                 music_path = await self._download_music(user_id, audio_url)
                 if music_path:
                     await self.delivery.send_file(user_id, music_path)
                 else:
                     await self.delivery.send_error(user_id, "音乐下载失败")
             else:
+                # 检查是否有错误信息
+                base_resp = result.get("base_resp", {})
+                error_msg = base_resp.get("status_msg", "未知错误")
                 await self.delivery.send_error(
                     user_id,
-                    f"未获取到音乐链接，请检查 API Key\n\n原始响应: {result}",
+                    f"音乐生成失败: {error_msg}\n\n原始响应: {result}",
                 )
 
         except Exception as e:

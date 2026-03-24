@@ -373,3 +373,31 @@ class AttachmentHandler:
             logger.error(f"处理语音附件时出错: {e}", exc_info=True)
             await self._send_error(user_id, f"处理语音失败: {str(e)}")
             return None
+
+    async def _send_error(self, user_id: str, error: str):
+        """发送错误消息"""
+        # 优先使用 CardDispatcher
+        if self.card_dispatcher:
+            from src.card_builder import UnifiedCardBuilder
+            content = UnifiedCardBuilder.build_error_card(error)
+            await self.card_dispatcher.send_card(
+                user_id=user_id,
+                card_type="error",
+                title="错误",
+                content=content,
+                message_type="error",
+                template_color="red"
+            )
+        elif self.card_builder:
+            from src.interfaces.im_platform import NormalizedCard
+            card = NormalizedCard(
+                card_type="error",
+                title="错误",
+                content=error,
+                template_color="red"
+            )
+            await self._send_via_sender(user_id, card=card)
+        else:
+            from src.card_manager import create_error_card
+            card = create_error_card(error)
+            await self._send_via_sender(user_id, message=json.dumps(card, ensure_ascii=False))

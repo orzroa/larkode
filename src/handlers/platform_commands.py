@@ -75,6 +75,8 @@ class PlatformCommands:
             await self._cmd_model(user_id, args)
         elif cmd == "#ws":
             await self._cmd_workspace(user_id, args)
+        elif cmd == "#mm":
+            await self._cmd_minimax(user_id, args)
         else:
             await self._send_error(user_id, f"未知命令: {cmd}，请输入 #help 查看帮助")
 
@@ -89,6 +91,38 @@ class PlatformCommands:
         await workspace_cmd.handle_workspace_command(
             user_id, args, self._send_via_sender
         )
+
+    async def _cmd_minimax(self, user_id: str, args: str):
+        """处理 #mm 命令 - MiniMax 多媒体"""
+        from src.config.settings import get_settings
+
+        settings = get_settings()
+        if not settings.minimax_enabled:
+            await self._send_error(user_id, "MiniMax 功能未启用")
+            return
+        if not settings.minimax_api_key:
+            await self._send_error(user_id, "MiniMax API Key 未配置，请设置 MINIMAX_API_KEY 环境变量")
+            return
+
+        try:
+            from src.minimax.client import get_minimax_client
+            from src.minimax.feishu_delivery import MiniMaxFeishuDelivery
+            from src.minimax.commands import MiniMaxCommands
+
+            client = get_minimax_client()
+            delivery = MiniMaxFeishuDelivery(self.feishu, self.card_dispatcher)
+
+            mm_commands = MiniMaxCommands(
+                client=client,
+                delivery=delivery,
+            )
+
+            await mm_commands.handle_command(user_id, args)
+
+        except Exception as e:
+            logger.error(f"处理 MiniMax 命令失败: {e}", exc_info=True)
+            await self._send_error(user_id, f"MiniMax 命令处理失败: {e}")
+
     async def _cmd_help(self, user_id: str):
         """显示帮助信息"""
         help_text = """
@@ -128,6 +162,13 @@ class PlatformCommands:
 
 📁 **#ws** `[序号]`
 查看或切换工作空间（无参数显示列表，有参数按序号切换）
+
+
+
+---
+
+🎨 **#mm** `[子命令]`
+MiniMax 多媒体能力（#mm help 查看详情）
 
 
 

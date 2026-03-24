@@ -2,6 +2,8 @@
 飞书 API 客户端：消息、用户操作
 """
 import asyncio
+import json
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 from src.config.settings import get_settings
@@ -31,10 +33,11 @@ class FeishuAPI:
             return self._client
 
         import lark_oapi as lark
+        settings = get_settings()
         self._client = lark.Client.builder() \
-            .app_id(get_settings().FEISHU_APP_ID) \
-            .app_secret(self.app_secret) \
-            .domain(getattr(lark, get_settings().FEISHU_MESSAGE_DOMAIN)) \
+            .app_id(self.app_id or settings.FEISHU_APP_ID) \
+            .app_secret(self.app_secret or settings.FEISHU_APP_SECRET) \
+            .domain(getattr(lark, settings.FEISHU_MESSAGE_DOMAIN)) \
             .log_level(lark.LogLevel.DEBUG) \
             .build()
         return self._client
@@ -48,36 +51,43 @@ class FeishuAPI:
         logger.info(f"FeishuAPI.send_message 被调用: user_id={user_id}")
         try:
             import lark_oapi as lark
+            import json as json_mod
             client = self._get_client()
 
             logger.info("lark.Client 获取完成")
 
             # 构建消息请求
             # message 可以是 dict、JSON 字符串、或普通文本
-            import json
             if isinstance(message, dict):
-                # dict 序列化为 JSON 字符串
-                message = json.dumps(message, ensure_ascii=False)
+                # dict 序列化为 JSON 字符串 → 卡片消息
+                msg_type = "interactive"
+                content = json_mod.dumps(message, ensure_ascii=False)
             elif isinstance(message, str):
-                # 尝试解析为 dict 再序列化，确保格式一致
+                # 尝试解析为 dict 再序列化
                 try:
-                    parsed = json.loads(message)
-                    message = json.dumps(parsed, ensure_ascii=False)
-                except json.JSONDecodeError:
-                    # 不是 JSON，保持为字符串（用于 text 类型）
-                    pass
+                    parsed = json_mod.loads(message)
+                    msg_type = "interactive"
+                    content = json_mod.dumps(parsed, ensure_ascii=False)
+                except json_mod.JSONDecodeError:
+                    # 不是 JSON → 纯文本消息
+                    msg_type = "text"
+                    content = json_mod.dumps({"text": message}, ensure_ascii=False)
+            else:
+                msg_type = "interactive"
+                content = json_mod.dumps({"text": str(message)}, ensure_ascii=False)
+
             request = lark.api.im.v1.CreateMessageRequest.builder() \
                 .receive_id_type(get_settings().FEISHU_MESSAGE_RECEIVE_ID_TYPE) \
                 .request_body(
                     lark.api.im.v1.CreateMessageRequestBody.builder()
-                    .msg_type("interactive")
+                    .msg_type(msg_type)
                     .receive_id(user_id)
-                    .content(message)
+                    .content(content)
                     .build()
                 ) \
                 .build()
 
-            logger.info(f"构建消息请求完成，准备发送")
+            logger.info(f"构建消息请求完成，msg_type={msg_type}，准备发送")
 
             # 发送消息（同步方法，需要在异步环境中包装）
             import asyncio
@@ -238,3 +248,174 @@ class FeishuAPI:
         except Exception as e:
             logger.error(f"更新消息时出错: {e}", exc_info=True)
             return False
+
+    async def send_image_message(self, user_id: str, image_key: str) -> bool:
+        """
+        发送图片消息
+
+        Args:
+            user_id: 用户 ID
+            image_key: 飞书图片 image_key
+
+        Returns:
+            发送成功返回 True
+        """
+        try:
+            import lark_oapi as lark
+
+            client = self._get_client()
+
+            content = json.dumps({"image_key": image_key})
+            request = lark.api.im.v1.CreateMessageRequest.builder() \
+                .receive_id_type(get_settings().FEISHU_MESSAGE_RECEIVE_ID_TYPE) \
+                .request_body(
+                    lark.api.im.v1.CreateMessageRequestBody.builder()
+                    .msg_type("image")
+                    .receive_id(user_id)
+                    .content(content)
+                    .build()
+                ) \
+                .build()
+
+            response = await asyncio.to_thread(client.im.v1.message.create, request)
+
+            if response.success():
+                logger.info(f"✅ 图片消息发送成功: {image_key}")
+                return True
+            else:
+                logger.error(f"❌ 图片消息发送失败: {response.code} - {response.msg}")
+                return False
+
+        except Exception as e:
+            logger.error(f"发送图片消息时出错: {e}", exc_info=True)
+            return False
+
+    async def send_audio_message(self, user_id: str, file_key: str) -> bool:
+        """
+        发送音频消息
+
+        由于飞书没有专门的 audio 文件上传 API，音频用 stream 类型上传，
+        通过 file 消息类型发送（用户可下载播放）。
+
+        Args:
+            user_id: 用户 ID
+            file_key: 飞书文件 file_key
+
+        Returns:
+            发送成功返回 True
+        """
+        try:
+            import lark_oapi as lark
+
+            client = self._get_client()
+
+            content = json.dumps({"file_key": file_key})
+            request = lark.api.im.v1.CreateMessageRequest.builder() \
+                .receive_id_type(get_settings().FEISHU_MESSAGE_RECEIVE_ID_TYPE) \
+                .request_body(
+                    lark.api.im.v1.CreateMessageRequestBody.builder()
+                    .msg_type("file")
+                    .receive_id(user_id)
+                    .content(content)
+                    .build()
+                ) \
+                .build()
+
+            response = await asyncio.to_thread(client.im.v1.message.create, request)
+
+            if response.success():
+                logger.info(f"✅ 音频消息发送成功: {file_key}")
+                return True
+            else:
+                logger.error(f"❌ 音频消息发送失败: {response.code} - {response.msg}")
+                return False
+
+        except Exception as e:
+            logger.error(f"发送音频消息时出错: {e}", exc_info=True)
+            return False
+
+    async def send_video_message(self, user_id: str, file_key: str, thumbnail_key: Optional[str] = None) -> bool:
+        """
+        发送视频消息
+
+        Args:
+            user_id: 用户 ID
+            file_key: 飞书视频文件 file_key
+            thumbnail_key: 视频封面 image_key（可选）
+
+        Returns:
+            发送成功返回 True
+        """
+        try:
+            import lark_oapi as lark
+
+            client = self._get_client()
+
+            content_data = {"file_key": file_key}
+            if thumbnail_key:
+                content_data["thumbnail_key"] = thumbnail_key
+            content = json.dumps(content_data)
+
+            request = lark.api.im.v1.CreateMessageRequest.builder() \
+                .receive_id_type(get_settings().FEISHU_MESSAGE_RECEIVE_ID_TYPE) \
+                .request_body(
+                    lark.api.im.v1.CreateMessageRequestBody.builder()
+                    .msg_type("video")
+                    .receive_id(user_id)
+                    .content(content)
+                    .build()
+                ) \
+                .build()
+
+            response = await asyncio.to_thread(client.im.v1.message.create, request)
+
+            if response.success():
+                logger.info(f"✅ 视频消息发送成功: {file_key}")
+                return True
+            else:
+                logger.error(f"❌ 视频消息发送失败: {response.code} - {response.msg}")
+                return False
+
+        except Exception as e:
+            logger.error(f"发送视频消息时出错: {e}", exc_info=True)
+            return False
+
+    async def upload_image(self, image_path: Path) -> Optional[str]:
+        """
+        上传图片到飞书
+
+        Args:
+            image_path: 图片文件路径
+
+        Returns:
+            image_key 上传成功返回 image_key，失败返回 None
+        """
+        from src.feishu.file_ops import upload_image
+        return await upload_image(self.app_secret, image_path)
+
+    async def upload_video(self, file_path: Path) -> Optional[str]:
+        """
+        上传视频到飞书
+
+        Args:
+            file_path: 视频文件路径
+
+        Returns:
+            file_key 上传成功返回 file_key，失败返回 None
+        """
+        from src.feishu.file_ops import upload_video
+        return await upload_video(self.app_secret, file_path)
+
+    async def upload_audio(self, file_path: Path) -> Optional[str]:
+        """
+        上传音频到飞书
+
+        Args:
+            file_path: 音频文件路径
+
+        Returns:
+            file_key 上传成功返回 file_key，失败返回 None
+        """
+        from src.feishu.file_ops import upload_audio
+        return await upload_audio(self.app_secret, file_path)
+

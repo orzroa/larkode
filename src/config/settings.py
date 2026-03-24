@@ -138,6 +138,11 @@ class Settings(BaseSettings):
     dingtalk_app_key: str = Field(default="", description="钉钉 App Key")
     dingtalk_app_secret: str = Field(default="", description="钉钉 App Secret")
 
+    # ==================== MiniMax 配置 ====================
+    minimax_api_key: str = Field(default="", description="MiniMax API Key")
+    minimax_group_id: str = Field(default="", description="MiniMax Group ID")
+    minimax_enabled: bool = Field(default=True, description="是否启用 MiniMax")
+
     # ==================== 流式输出配置 ====================
     streaming_output_enabled: bool = Field(default=True, description="是否启用流式输出")
     streaming_poll_interval: float = Field(default=0.5, description="流式输出轮询间隔（秒）")

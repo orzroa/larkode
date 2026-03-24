@@ -66,10 +66,11 @@ def _detect_audio_extension(file_path: Path) -> str:
 def _create_client(app_secret: str):
     """创建飞书客户端"""
     import lark_oapi as lark
+    settings = get_settings()
     return lark.Client.builder() \
-        .app_id(get_settings().FEISHU_APP_ID) \
+        .app_id(settings.FEISHU_APP_ID) \
         .app_secret(app_secret) \
-        .domain(getattr(lark, get_settings().FEISHU_MESSAGE_DOMAIN)) \
+        .domain(getattr(lark, settings.FEISHU_MESSAGE_DOMAIN)) \
         .log_level(lark.LogLevel.WARNING) \
         .build()
 
@@ -328,3 +329,42 @@ async def send_file_message(
     except Exception as e:
         logger.error(f"发送文件消息时出错: {e}", exc_info=True)
         return False
+
+
+async def upload_audio(
+    app_secret: str,
+    audio_path: Path
+) -> Optional[str]:
+    """
+    上传音频到飞书
+
+    使用 stream 类型上传（飞书没有专门的 audio 上传 API），
+    上传后通过 file 消息类型发送（用户可下载播放）。
+
+    Args:
+        app_secret: 飞书应用密钥
+        audio_path: 音频文件路径
+
+    Returns:
+        file_key: 上传成功返回 file_key，失败返回 None
+    """
+    return await upload_file(app_secret, audio_path, file_type="stream")
+
+
+async def upload_video(
+    app_secret: str,
+    video_path: Path
+) -> Optional[str]:
+    """
+    上传视频到飞书
+
+    使用 stream 类型上传，视频通过 video 消息类型发送。
+
+    Args:
+        app_secret: 飞书应用密钥
+        video_path: 视频文件路径
+
+    Returns:
+        file_key: 上传成功返回 file_key，失败返回 None
+    """
+    return await upload_file(app_secret, video_path, file_type="stream")

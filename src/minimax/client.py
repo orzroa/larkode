@@ -340,7 +340,7 @@ class MiniMaxClient:
         self,
         prompt: str,
         lyrics: str = "",
-        model: str = "music-2.0",
+        model: str = "music-2.5",
         output_format: str = "url",
         **kwargs,
     ) -> Dict[str, Any]:
@@ -365,7 +365,44 @@ class MiniMaxClient:
         }
         if lyrics:
             payload["lyrics"] = lyrics
-        response = await client.post("/v1/music_generation", json=payload, timeout=30.0)
+        response = await client.post("/v1/music_generation", json=payload, timeout=180.0)
+        data = self._handle_response(response)
+        return data
+
+    async def text_to_music_v2(
+        self,
+        prompt: str,
+        model: str = "dfspphonk",
+        duration: int = 60,
+        output_format: str = "mp3",
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        文生音乐 V2（使用 /v1/music/generation 端点）
+
+        Args:
+            prompt: 提示词（描述音乐风格/情绪）
+            model: 模型名称（dfspphonk 等）
+            duration: 音乐时长（秒）
+            output_format: 输出格式（hex, wav, mp3）
+
+        Returns:
+            {"audio": "hex...", "extra_info": {...}}
+        """
+        client = self._get_client()
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "duration": duration,
+            "output_format": output_format,
+            "audio_setting": {
+                "sample_rate": 44100,
+                "bitrate": 256000,
+                "format": output_format,
+            },
+            **kwargs,
+        }
+        response = await client.post("/v1/music/generation", json=payload, timeout=180.0)
         data = self._handle_response(response)
         return data
 
