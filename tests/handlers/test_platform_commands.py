@@ -207,3 +207,120 @@ class TestPlatformCommands:
             mock_ccr.return_value = mock_instance
 
             await platform_commands._cmd_model("user_123", "")
+
+    @pytest.mark.asyncio
+    async def test_handle_command_workspace(self, platform_commands):
+        """测试处理 #ws 命令"""
+        with patch('src.handlers.platform_commands.WorkspaceCommands') as mock_ws:
+            mock_instance = Mock()
+            mock_instance.handle_workspace_command = AsyncMock()
+            mock_ws.return_value = mock_instance
+
+            await platform_commands.handle_command("user_123", "#ws")
+
+    @pytest.mark.asyncio
+    async def test_handle_command_minimax_disabled(self, platform_commands):
+        """测试处理 #mm 命令 - 功能禁用"""
+        platform_commands._send_via_sender = AsyncMock()
+
+        with patch('src.config.settings.get_settings') as mock_settings:
+            mock_settings.return_value.minimax_enabled = False
+            mock_settings.return_value.minimax_api_key = "test_key"
+
+            await platform_commands.handle_command("user_123", "#mm img test")
+            # _send_via_sender 会被调用来发送错误卡片
+            platform_commands._send_via_sender.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_handle_command_minimax_no_api_key(self, platform_commands):
+        """测试处理 #mm 命令 - 无 API Key"""
+        platform_commands._send_via_sender = AsyncMock()
+
+        with patch('src.config.settings.get_settings') as mock_settings:
+            mock_settings.return_value.minimax_enabled = True
+            mock_settings.return_value.minimax_api_key = None
+
+            await platform_commands.handle_command("user_123", "#mm img test")
+            # _send_via_sender 会被调用来发送错误卡片
+            platform_commands._send_via_sender.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_handle_command_minimax_success(self, platform_commands):
+        """测试处理 #mm 命令 - 成功"""
+        with patch('src.handlers.platform_commands.get_settings') as mock_settings:
+            mock_settings.return_value.minimax_enabled = True
+            mock_settings.return_value.minimax_api_key = "test_key"
+
+            with patch('src.minimax.client.get_minimax_client') as mock_client, \
+                 patch('src.minimax.feishu_delivery.MiniMaxFeishuDelivery') as mock_delivery, \
+                 patch('src.minimax.commands.MiniMaxCommands') as mock_commands:
+                mock_cmd_instance = Mock()
+                mock_cmd_instance.handle_command = AsyncMock()
+                mock_commands.return_value = mock_cmd_instance
+
+                await platform_commands.handle_command("user_123", "#mm help")
+
+    @pytest.mark.asyncio
+    async def test_handle_command_minimax_exception(self, platform_commands):
+        """测试处理 #mm 命令 - 异常"""
+        with patch('src.handlers.platform_commands.get_settings') as mock_settings:
+            mock_settings.return_value.minimax_enabled = True
+            mock_settings.return_value.minimax_api_key = "test_key"
+
+            with patch('src.minimax.client.get_minimax_client',
+                      side_effect=Exception("test error")), \
+                 patch.object(platform_commands, '_send_error', new_callable=AsyncMock) as mock_error:
+                await platform_commands.handle_command("user_123", "#mm img test")
+                mock_error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_cmd_history_with_card_builder(self, platform_commands):
+        """测试历史命令使用 card_builder"""
+        platform_commands.card_builder = Mock()
+        platform_commands.card_dispatcher = None
+        platform_commands._send_via_sender = AsyncMock()
+
+        with patch('src.storage.db') as mock_db:
+            mock_db.get_messages_by_direction.return_value = []
+
+            await platform_commands._cmd_history("user_123")
+
+    @pytest.mark.asyncio
+    async def test_cmd_cancel_with_card_builder(self, platform_commands):
+        """测试取消命令使用 card_builder"""
+        platform_commands.card_builder = Mock()
+        platform_commands.card_dispatcher = None
+        platform_commands._send_via_sender = AsyncMock()
+
+        with patch('subprocess.run') as mock_run:
+            await platform_commands._cmd_cancel("user_123", "")
+
+    @pytest.mark.asyncio
+    async def test_cmd_cancel_get_workspace_exception(self, platform_commands):
+        """测试取消命令 - 获取工作空间异常"""
+        with patch('src.workspace_manager.get_workspace_manager',
+                  side_effect=Exception("workspace error")), \
+             patch('subprocess.run') as mock_run:
+            await platform_commands._cmd_cancel("user_123", "")
+            # 应该使用默认 session 名称
+            mock_run.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_send_error_without_card_builder(self, platform_commands):
+        """测试发送错误 - 无 card_builder"""
+        platform_commands.card_builder = None
+        platform_commands._send_via_sender = AsyncMock()
+
+        with patch('src.card_builder.create_error_card', return_value="error content") as mock_create:
+            await platform_commands._send_error("user_123", "test error")
+            mock_create.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_cmd_shot_without_card_builder(self, platform_commands):
+        """测试截屏命令 - 无 card_builder"""
+        platform_commands.card_builder = None
+
+        with patch('src.utils.tmux_utils.get_tmux_last_lines', return_value="output"), \
+             patch.object(platform_commands, '_cmd_shot_legacy', new_callable=AsyncMock) as mock_legacy:
+            await platform_commands._cmd_shot("user_123", "")
+            mock_legacy.assert_called()

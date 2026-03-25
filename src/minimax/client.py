@@ -93,6 +93,76 @@ class MiniMaxClient:
 
     # ==================== Image Generation ====================
 
+    async def image_to_image(
+        self,
+        prompt: str,
+        image_path: str,
+        model: str = "image-01",
+        response_format: str = "url",
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        图生图（根据上传的图片和提示词生成新图片）
+
+        Args:
+            prompt: 提示词
+            image_path: 图片路径（本地路径、URL 或 Base64）
+            model: 模型名称（image-01）
+            response_format: url 或 base64
+
+        Returns:
+            {"image_urls": [...]} 或 {"image_base64": [...]}
+        """
+        client = self._get_client()
+
+        # 判断输入类型并转换为合适的格式
+        if image_path.startswith("http://") or image_path.startswith("https://"):
+            # URL 格式，直接使用
+            pass
+        elif image_path.startswith("data:image"):
+            # 已经是 Base64 格式
+            pass
+        else:
+            # 本地文件，转换为 Base64
+            import base64
+            with open(image_path, "rb") as f:
+                image_data = f.read()
+
+            # 检测图片类型
+            if image_path.lower().endswith(".png"):
+                mime_type = "image/png"
+            elif image_path.lower().endswith(".webp"):
+                mime_type = "image/webp"
+            else:
+                mime_type = "image/jpeg"
+
+            b64_data = base64.b64encode(image_data).decode("utf-8")
+            image_path = f"data:{mime_type};base64,{b64_data}"
+
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "response_format": response_format,
+            "image_base64": image_path,
+            **kwargs,
+        }
+        response = await client.post("/v1/image_generation", json=payload)
+        data = self._handle_response(response)
+
+        # 提取图片数据（统一格式）
+        result = {}
+        if "data" in data:
+            if "image_urls" in data["data"]:
+                result["image_urls"] = data["data"]["image_urls"]
+            elif "image_base64" in data["data"]:
+                result["image_base64"] = data["data"]["image_base64"]
+        elif "image_urls" in data:
+            result["image_urls"] = data["image_urls"]
+        elif "image_base64" in data:
+            result["image_base64"] = data["image_base64"]
+
+        return result
+
     async def image_generation(
         self,
         prompt: str,

@@ -25,6 +25,7 @@ HELP_TEXT = """
 
 🎨 **图片生成**
 • `#mm img <提示词>` — 文生图
+• `#mm p2p <提示词>` — 图生图（先上传图片，再用此命令）
 
 🎬 **视频生成**
 • `#mm t2v <提示词>` — 文生视频
@@ -81,6 +82,8 @@ class MiniMaxCommands:
             await self._cmd_help(user_id)
         elif cmd == "img":
             await self.image_cap.text_to_image(user_id, args)
+        elif cmd == "p2p":
+            await self.image_cap.image_to_image(user_id, args)
         elif cmd == "t2v":
             await self.video_cap.text_to_video(user_id, args)
         elif cmd == "p2v":

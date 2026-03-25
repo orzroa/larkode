@@ -263,7 +263,7 @@ class AttachmentHandler:
             )
             await self._send_via_sender(user_id, card=card)
         else:
-            from src.card_manager import create_error_card
+            from src.card_builder import create_error_card
             card = create_error_card(error)
             await self._send_via_sender(user_id, message=json.dumps(card, ensure_ascii=False))
 
@@ -408,6 +408,6 @@ class AttachmentHandler:
             )
             await self._send_via_sender(user_id, card=card)
         else:
-            from src.card_manager import create_error_card
+            from src.card_builder import create_error_card
             card = create_error_card(error)
             await self._send_via_sender(user_id, message=json.dumps(card, ensure_ascii=False))

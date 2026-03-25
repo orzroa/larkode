@@ -557,3 +557,248 @@ class TestMockAISessionManager:
         # 测试不存在进程
         processes = self.manager.detect_running_processes()
         assert len(processes) == 0
+
+
+class TestProcessInfo:
+    """测试 ProcessInfo 类"""
+
+    def test_process_info_init(self):
+        """测试 ProcessInfo 初始化"""
+        process = ProcessInfo(
+            pid=1234,
+            name="claude",
+            cwd="/home/user/project",
+            cmdline=["claude", "--help"]
+        )
+
+        assert process.pid == 1234
+        assert process.name == "claude"
+        assert process.cwd == "/home/user/project"
+        assert process.cmdline == ["claude", "--help"]
+
+    def test_process_info_to_dict(self):
+        """测试 ProcessInfo.to_dict()"""
+        process = ProcessInfo(
+            pid=1234,
+            name="claude",
+            cwd="/home/user/project",
+            cmdline=["claude", "--help"]
+        )
+
+        result = process.to_dict()
+
+        assert result["pid"] == 1234
+        assert result["name"] == "claude"
+        assert result["cwd"] == "/home/user/project"
+        assert result["cmdline"] == ["claude", "--help"]
+
+
+class TestSessionInfo:
+    """测试 SessionInfo 类"""
+
+    def test_session_info_init(self):
+        """测试 SessionInfo 初始化"""
+        now = datetime.now()
+        process = ProcessInfo(1234, "claude", "/test", ["claude"])
+
+        session = SessionInfo(
+            session_id="session_123",
+            status=SessionStatus.ACTIVE,
+            last_updated=now,
+            tmux_name="tmux_session",
+            process_info=process
+        )
+
+        assert session.session_id == "session_123"
+        assert session.status == SessionStatus.ACTIVE
+        assert session.last_updated == now
+        assert session.tmux_name == "tmux_session"
+        assert session.process_info == process
+
+    def test_session_info_to_dict(self):
+        """测试 SessionInfo.to_dict()"""
+        now = datetime.now()
+        process = ProcessInfo(1234, "claude", "/test", ["claude"])
+
+        session = SessionInfo(
+            session_id="session_123",
+            status=SessionStatus.ACTIVE,
+            last_updated=now,
+            tmux_name="tmux_session",
+            process_info=process
+        )
+
+        result = session.to_dict()
+
+        assert result["session_id"] == "session_123"
+        assert result["status"] == "active"
+        assert result["last_updated"] == now.isoformat()
+        assert result["tmux_name"] == "tmux_session"
+        assert result["process_info"]["pid"] == 1234
+
+    def test_session_info_to_dict_no_process(self):
+        """测试 SessionInfo.to_dict() - 无进程信息"""
+        now = datetime.now()
+
+        session = SessionInfo(
+            session_id="session_123",
+            status=SessionStatus.INACTIVE,
+            last_updated=now,
+            tmux_name=None,
+            process_info=None
+        )
+
+        result = session.to_dict()
+
+        assert result["session_id"] == "session_123"
+        assert result["status"] == "inactive"
+        assert result["tmux_name"] is None
+        assert result["process_info"] is None
+
+    def test_session_info_to_dict_no_last_updated(self):
+        """测试 SessionInfo.to_dict() - 无更新时间"""
+        session = SessionInfo(
+            session_id="session_123",
+            status=SessionStatus.ACTIVE,
+            last_updated=None
+        )
+
+        result = session.to_dict()
+
+        assert result["last_updated"] is None
+
+
+class TestSessionStatus:
+    """测试 SessionStatus 枚举"""
+
+    def test_session_status_values(self):
+        """测试 SessionStatus 枚举值"""
+        assert SessionStatus.ACTIVE.value == "active"
+        assert SessionStatus.INACTIVE.value == "inactive"
+        assert SessionStatus.UNKNOWN.value == "unknown"
+
+
+class TestTmuxStatus:
+    """测试 TmuxStatus 枚举"""
+
+    def test_tmux_status_values(self):
+        """测试 TmuxStatus 枚举值"""
+        assert TmuxStatus.EXISTS.value == "exists"
+        assert TmuxStatus.NOT_EXISTS.value == "not_exists"
+        assert TmuxStatus.ERROR.value == "error"
+
+
+class TestMockAISessionManagerInterface:
+    """测试接口中的 MockAISessionManager"""
+
+    def setup_method(self):
+        """测试前准备"""
+        from src.interfaces.ai_session_manager import MockAISessionManager as InterfaceMockManager
+        self.manager = InterfaceMockManager()
+
+    def test_add_mock_process(self):
+        """测试添加模拟进程"""
+        self.manager.add_mock_process(1234, "claude", "/test", ["claude"])
+
+        processes = self.manager.detect_running_processes()
+        assert len(processes) == 1
+        assert processes[0].pid == 1234
+
+    def test_add_mock_session(self):
+        """测试添加模拟 session"""
+        self.manager.add_mock_session("session_123", "test_project")
+
+        session_id = self.manager.find_session_from_projects("test_project")
+        assert session_id == "session_123"
+
+    def test_add_mock_session_with_custom_status(self):
+        """测试添加模拟 session - 自定义状态"""
+        self.manager.add_mock_session(
+            "session_123",
+            "test_project",
+            status=SessionStatus.INACTIVE
+        )
+
+        session_info = self.manager.get_session_info("session_123")
+        assert session_info.status == SessionStatus.INACTIVE
+
+    def test_add_mock_session_with_tmux_name(self):
+        """测试添加模拟 session - 带 tmux 名称"""
+        self.manager.add_mock_session(
+            "session_123",
+            "test_project",
+            tmux_name="tmux_123"
+        )
+
+        session_info = self.manager.get_session_info("session_123")
+        assert session_info.tmux_name == "tmux_123"
+
+    def test_set_tmux_status(self):
+        """测试设置 tmux 状态"""
+        self.manager.set_tmux_status("tmux_session", TmuxStatus.EXISTS)
+
+        status = self.manager.check_tmux_session("tmux_session")
+        assert status == TmuxStatus.EXISTS
+
+    def test_get_or_create_session_existing(self):
+        """测试获取或创建 session - 已存在"""
+        self.manager.add_mock_session("session_123", "test_project")
+
+        session_id = self.manager.get_or_create_session("test_project", start_if_missing=False)
+        assert session_id == "session_123"
+
+    def test_get_or_create_session_create_new(self):
+        """测试获取或创建 session - 创建新的"""
+        session_id = self.manager.get_or_create_session("new_project", start_if_missing=True)
+        assert session_id is not None
+
+    def test_get_or_create_session_no_create(self):
+        """测试获取或创建 session - 不允许创建"""
+        session_id = self.manager.get_or_create_session("nonexistent", start_if_missing=False)
+        assert session_id is None
+
+    def test_stop_session_success(self):
+        """测试停止 session - 成功"""
+        self.manager.add_mock_session("session_123", "test_project", tmux_name="tmux_123")
+        # 确保 tmux_sessions 中有对应的 key
+        self.manager.set_tmux_status("tmux_123", TmuxStatus.EXISTS)
+
+        result = self.manager.stop_session("session_123", kill_tmux=True)
+        assert result is True
+        assert self.manager.get_session_info("session_123") is None
+
+    def test_stop_session_not_found(self):
+        """测试停止 session - 不存在"""
+        result = self.manager.stop_session("nonexistent")
+        assert result is False
+
+    def test_get_active_sessions_all(self):
+        """测试获取所有活跃 sessions"""
+        self.manager.add_mock_session("session_1", "project1")
+        self.manager.add_mock_session("session_2", "project2")
+
+        sessions = self.manager.get_active_sessions()
+        assert len(sessions) == 2
+
+    def test_get_active_sessions_by_project(self):
+        """测试按项目获取活跃 sessions"""
+        self.manager.add_mock_session("session_1", "project1")
+        self.manager.add_mock_session("session_2", "project2")
+
+        sessions = self.manager.get_active_sessions("project1")
+        assert len(sessions) == 1
+        assert sessions[0].session_id == "session_1"
+
+    def test_check_process_in_tmux_exists(self):
+        """测试检查 tmux 中的进程 - 存在"""
+        self.manager.add_mock_process(1234, "claude", "/test", ["claude"])
+        self.manager.set_tmux_status("tmux_session", TmuxStatus.EXISTS)
+
+        process = self.manager.check_process_in_tmux("tmux_session")
+        assert process is not None
+        assert process.pid == 1234
+
+    def test_check_process_in_tmux_not_exists(self):
+        """测试检查 tmux 中的进程 - 不存在"""
+        process = self.manager.check_process_in_tmux("nonexistent")
+        assert process is None

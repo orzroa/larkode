@@ -842,3 +842,135 @@ class TestMiniMaxClient:
 
         # 清理
         client_module._client = None
+
+    @pytest.mark.asyncio
+    async def test_image_to_image_with_url(self, client):
+        """测试图生图使用 URL"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": {"image_urls": ["https://example.com/new-img.png"]},
+            "base_resp": {"status_code": 0},
+        }
+
+        with patch.object(client, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response
+            mock_get_client.return_value = mock_client
+
+            result = await client.image_to_image(
+                prompt="convert to oil painting style",
+                image_path="https://example.com/source.jpg"
+            )
+            assert "image_urls" in result
+            assert result["image_urls"][0] == "https://example.com/new-img.png"
+
+            # 验证请求参数
+            call_args = mock_client.post.call_args[1]
+            assert call_args["json"]["prompt"] == "convert to oil painting style"
+            assert call_args["json"]["image_base64"] == "https://example.com/source.jpg"
+
+    @pytest.mark.asyncio
+    async def test_image_to_image_with_base64(self, client):
+        """测试图生图使用 Base64"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "image_urls": ["https://example.com/new-img.png"],
+        }
+
+        with patch.object(client, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response
+            mock_get_client.return_value = mock_client
+
+            result = await client.image_to_image(
+                prompt="add more light",
+                image_path="data:image/jpeg;base64,/9j/4AAQSkZJRg"
+            )
+            assert "image_urls" in result
+
+            # 验证 Base64 格式被保留
+            call_args = mock_client.post.call_args[1]
+            assert call_args["json"]["image_base64"] == "data:image/jpeg;base64,/9j/4AAQSkZJRg"
+
+    @pytest.mark.asyncio
+    async def test_image_to_image_with_local_file_jpeg(self, client):
+        """测试图生图使用本地 JPEG 文件"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "image_urls": ["https://example.com/new-img.png"],
+        }
+
+        fake_image_data = b"fake_jpeg_data"
+
+        with patch.object(client, "_get_client") as mock_get_client:
+            with patch("builtins.open", mock_open(read_data=fake_image_data)):
+                mock_client = AsyncMock()
+                mock_client.post.return_value = mock_response
+                mock_get_client.return_value = mock_client
+
+                result = await client.image_to_image(
+                    prompt="enhance colors",
+                    image_path="/tmp/test.jpg"
+                )
+                assert "image_urls" in result
+
+                # 验证本地文件被转换为 Base64
+                call_args = mock_client.post.call_args[1]
+                assert call_args["json"]["image_base64"].startswith("data:image/jpeg;base64,")
+
+    @pytest.mark.asyncio
+    async def test_image_to_image_with_local_file_png(self, client):
+        """测试图生图使用本地 PNG 文件"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "image_urls": ["https://example.com/new-img.png"],
+        }
+
+        fake_image_data = b"fake_png_data"
+
+        with patch.object(client, "_get_client") as mock_get_client:
+            with patch("builtins.open", mock_open(read_data=fake_image_data)):
+                mock_client = AsyncMock()
+                mock_client.post.return_value = mock_response
+                mock_get_client.return_value = mock_client
+
+                result = await client.image_to_image(
+                    prompt="make brighter",
+                    image_path="/tmp/test.png"
+                )
+                assert "image_urls" in result
+
+                # 验证 PNG 格式被正确识别
+                call_args = mock_client.post.call_args[1]
+                assert call_args["json"].get("image_base64", "").startswith("data:image/png;base64,")
+
+    @pytest.mark.asyncio
+    async def test_image_to_image_with_local_file_webp(self, client):
+        """测试图生图使用本地 WebP 文件"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "image_urls": ["https://example.com/new-img.png"],
+        }
+
+        fake_image_data = b"fake_webp_data"
+
+        with patch.object(client, "_get_client") as mock_get_client:
+            with patch("builtins.open", mock_open(read_data=fake_image_data)):
+                mock_client = AsyncMock()
+                mock_client.post.return_value = mock_response
+                mock_get_client.return_value = mock_client
+
+                result = await client.image_to_image(
+                    prompt="add detail",
+                    image_path="/tmp/test.webp"
+                )
+                assert "image_urls" in result
+
+                # 验证 WebP 格式被正确识别
+                call_args = mock_client.post.call_args[1]
+                assert call_args["json"].get("image_base64", "").startswith("data:image/webp;base64,")

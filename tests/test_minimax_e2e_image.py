@@ -244,3 +244,89 @@ class TestMiniMaxMusicE2E:
 
         finally:
             await client.close()
+
+class TestMiniMaxP2PE2E:
+    """MiniMax 图生图端到端测试"""
+
+    @require_api_key
+    @pytest.mark.asyncio
+    async def test_p2p_generation_url(self):
+        """真实调用 MiniMax 图生图 API（使用 URL 格式的图片）"""
+        from src.minimax.client import MiniMaxClient
+        import httpx
+
+        # 首先生成一张源图片
+        client = MiniMaxClient(
+            api_key=MINIMAX_API_KEY,
+            group_id=MINIMAX_GROUP_ID or None,
+        )
+        try:
+            source_result = await client.image_generation(
+                prompt="a simple red apple on white background",
+                response_format="url",
+            )
+            assert "image_urls" in source_result
+            source_url = source_result["image_urls"][0]
+            print(f"✅ 源图片 URL: {source_url[:80]}...")
+
+            # 下载源图片
+            async with httpx.AsyncClient(timeout=30.0) as http:
+                resp = await http.get(source_url)
+                resp.raise_for_status()
+                source_data = resp.content
+
+            print(f"✅ 源图片大小: {len(source_data)} bytes")
+
+            # 使用源图片 URL 进行图生图
+            result = await client.image_to_image(
+                prompt="make the apple green",
+                image_path=source_url,
+                response_format="url",
+            )
+
+            print(f"\n图生图 API 响应: {result}")
+
+            assert "image_urls" in result, f"返回格式错误，缺少 image_urls: {result}"
+            assert len(result["image_urls"]) > 0, "未返回任何图片 URL"
+
+            image_url = result["image_urls"][0]
+            print(f"✅ 图生图 URL: {image_url[:80]}...")
+
+        finally:
+            await client.close()
+
+    @require_api_key
+    @pytest.mark.asyncio
+    async def test_p2p_generation_base64(self):
+        """真实调用 MiniMax 图生图 API（使用 Base64 格式）"""
+        from src.minimax.client import MiniMaxClient
+
+        client = MiniMaxClient(
+            api_key=MINIMAX_API_KEY,
+            group_id=MINIMAX_GROUP_ID or None,
+        )
+        try:
+            # 生成源图片（Base64 格式）
+            source_result = await client.image_generation(
+                prompt="a yellow banana on blue background",
+                response_format="base64",
+            )
+            assert "image_base64" in source_result
+            source_b64 = source_result["image_base64"][0]
+            print(f"✅ 源图片 Base64 大小: {len(source_b64)} chars")
+
+            # 使用源图片 Base64 进行图生图
+            result = await client.image_to_image(
+                prompt="add some spots to the banana",
+                image_path=f"data:image/png;base64,{source_b64}",
+                response_format="url",
+            )
+
+            assert "image_urls" in result, f"返回格式错误: {result}"
+            assert len(result["image_urls"]) > 0
+
+            image_url = result["image_urls"][0]
+            print(f"✅ 图生图 URL: {image_url[:80]}...")
+
+        finally:
+            await client.close()
