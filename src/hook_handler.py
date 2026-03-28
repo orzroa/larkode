@@ -266,12 +266,13 @@ async def send_feishu_notification(message: str, message_type: str = "stop", eve
         return ""
 
 
-def build_permission_message(context: Union[HookContext, str], tool_input: Optional[dict] = None) -> str:
+def build_permission_message(context: Union[HookContext, str], tool_input: Optional[dict] = None, cwd: Optional[str] = None) -> str:
     """构建交互请求消息
 
     Args:
         context: HookContext 对象或 tool_name 字符串
         tool_input: 工具输入参数（当 context 是字符串时必需）
+        cwd: 工作目录路径（用于确定截屏的工作空间）
 
     Returns:
         str: 构建的消息
@@ -280,32 +281,35 @@ def build_permission_message(context: Union[HookContext, str], tool_input: Optio
     if isinstance(context, HookContext):
         tool_name = context.tool_name or ""
         tool_input = context.tool_input or {}
+        cwd = cwd or context.cwd  # 优先使用传入的 cwd，否则使用 context 中的
     else:
         tool_name = context
         tool_input = tool_input or {}
 
-    return _build_permission_content(tool_name, tool_input)
+    return _build_permission_content(tool_name, tool_input, cwd)
 
 
-def build_permission_request_message(tool_name: str, tool_input: dict) -> str:
+def build_permission_request_message(tool_name: str, tool_input: dict, cwd: Optional[str] = None) -> str:
     """构建交互请求消息（兼容测试的简化版本）
 
     Args:
         tool_name: 工具名称（如 "Bash", "Write", "AskUserQuestion"）
         tool_input: 工具输入参数
+        cwd: 工作目录路径（用于确定截屏的工作空间）
 
     Returns:
         str: 构建的消息字符串
     """
-    return _build_permission_content(tool_name, tool_input)
+    return _build_permission_content(tool_name, tool_input, cwd)
 
 
-def _build_permission_content(tool_name: str, tool_input: dict) -> str:
+def _build_permission_content(tool_name: str, tool_input: dict, cwd: Optional[str] = None) -> str:
     """构建权限请求消息的核心逻辑
 
     Args:
         tool_name: 工具名称
         tool_input: 工具输入参数
+        cwd: 工作目录路径（用于确定截屏的工作空间）
 
     Returns:
         str: 构建的消息
@@ -343,8 +347,8 @@ def _build_permission_content(tool_name: str, tool_input: dict) -> str:
 
     # 其他工具（Bash、ExitPlanMode、Edit 等）统一显示 tmux 屏幕内容
     else:
-        # 获取 tmux 输出
-        tmux_output = get_tmux_last_lines(50)
+        # 获取 tmux 输出，传入工作空间路径以确保截屏正确的 session
+        tmux_output = get_tmux_last_lines(50, workspace=cwd)
         return f"屏幕内容:\n\n```\n{tmux_output}\n```"
 
 async def handle_event(handler: IHookHandler, context: HookContext, data: dict):

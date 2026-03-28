@@ -381,3 +381,84 @@ class TestBuildPermissionRequestMessage:
             message = build_permission_request_message("Bash", {"command": "ls"})
 
             assert "屏幕内容" in message
+
+    def test_build_permission_request_message_with_cwd(self):
+        """测试带 cwd 参数的权限请求消息 - 确保 workspace 正确传递"""
+        from src.hook_handler import build_permission_request_message
+
+        with patch('src.hook_handler.get_tmux_last_lines') as mock_get_lines:
+            mock_get_lines.return_value = "workspace specific output"
+
+            message = build_permission_request_message(
+                "Bash",
+                {"command": "ls"},
+                cwd="/home/user/other_workspace"
+            )
+
+            # 关键验证：get_tmux_last_lines 应收到 workspace 参数
+            mock_get_lines.assert_called_once_with(50, workspace="/home/user/other_workspace")
+            assert "workspace specific output" in message
+
+    def test_build_permission_message_with_cwd_parameter(self):
+        """测试 build_permission_message 正确传递 cwd 到截屏函数"""
+        from src.hook_handler import build_permission_message
+
+        with patch('src.hook_handler.get_tmux_last_lines') as mock_get_lines:
+            mock_get_lines.return_value = "correct workspace output"
+
+            # 传入 cwd 参数，验证截屏使用正确的工作空间
+            message = build_permission_message(
+                "Bash",
+                {"command": "pwd"},
+                cwd="/home/ubuntu/other-project"
+            )
+
+            # 验证：get_tmux_last_lines 应使用传入的 cwd
+            mock_get_lines.assert_called_once_with(50, workspace="/home/ubuntu/other-project")
+            assert "correct workspace output" in message
+
+    def test_build_permission_message_context_with_cwd(self):
+        """测试 HookContext 中的 cwd 被正确传递到截屏函数"""
+        from src.hook_handler import build_permission_message
+        from src.interfaces.hook_handler import HookContext, HookEventType
+
+        with patch('src.hook_handler.get_tmux_last_lines') as mock_get_lines:
+            mock_get_lines.return_value = "context workspace output"
+
+            context = HookContext(
+                event_type=HookEventType.PRE_TOOL_USE,
+                tool_name="Bash",
+                tool_input={"command": "ls"},
+                cwd="/home/user/workspace_beta"  # 在 context 中设置 cwd
+            )
+
+            message = build_permission_message(context)
+
+            # 验证：截屏应使用 context 中的 cwd
+            mock_get_lines.assert_called_once_with(50, workspace="/home/user/workspace_beta")
+            assert "context workspace output" in message
+
+    def test_build_permission_message_explicit_cwd_overrides_context(self):
+        """测试显式传入的 cwd 参数优先于 context.cwd"""
+        from src.hook_handler import build_permission_message
+        from src.interfaces.hook_handler import HookContext, HookEventType
+
+        with patch('src.hook_handler.get_tmux_last_lines') as mock_get_lines:
+            mock_get_lines.return_value = "explicit workspace output"
+
+            context = HookContext(
+                event_type=HookEventType.PRE_TOOL_USE,
+                tool_name="Bash",
+                tool_input={"command": "ls"},
+                cwd="/home/user/workspace_alpha"  # context 中的 cwd
+            )
+
+            # 显式传入不同的 cwd
+            message = build_permission_message(
+                context,
+                cwd="/home/user/workspace_beta"  # 显式 cwd 应优先
+            )
+
+            # 验证：显式传入的 cwd 应被使用
+            mock_get_lines.assert_called_once_with(50, workspace="/home/user/workspace_beta")
+            assert "explicit workspace output" in message
