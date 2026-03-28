@@ -85,16 +85,6 @@ def test_workspaces():
     assert alpha.exists(), f"workspace_alpha 目录不存在: {alpha}"
     assert beta.exists(), f"workspace_beta 目录不存在: {beta}"
 
-    # 计算需要清理的 session 名称
-    def get_session_name(workspace_path: str) -> str:
-        path_str = str(workspace_path).strip('/')
-        return f"cc-{path_str.replace('/', '-')}"
-
-    sessions_to_kill = [
-        get_session_name(str(alpha)),
-        get_session_name(str(beta))
-    ]
-
     # 保存原始环境变量
     original_env = {
         "WORKSPACE_ROOT_DIR": os.environ.get("WORKSPACE_ROOT_DIR"),
@@ -117,11 +107,18 @@ def test_workspaces():
         "root": test_root,
         "alpha": alpha,
         "beta": beta,
-        "sessions_to_kill": sessions_to_kill
     }
 
     # 清理 tmux sessions
     try:
+        from src.workspace_manager import WorkspaceManager
+        manager = WorkspaceManager()
+        # 计算测试工作空间的 session 名称
+        sessions_to_kill = [
+            manager._get_session_name(str(alpha)),
+            manager._get_session_name(str(beta))
+        ]
+
         result = subprocess.run(
             ["tmux", "list-sessions", "-F", "#{session_name}"],
             capture_output=True, text=True, timeout=5

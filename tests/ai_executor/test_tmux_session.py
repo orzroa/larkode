@@ -34,12 +34,12 @@ class TestTmuxSessionManagerInit:
         with patch('src.ai_executor.tmux_session.get_settings', return_value=mock_settings):
             with patch('src.workspace_manager.get_workspace_manager') as mock_wm:
                 mock_wm.return_value.get_current_workspace.return_value = "/test/workspace"
+                mock_wm.return_value._get_session_name.return_value = "cc-test-workspace"
                 with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
                     manager = TmuxSessionManager()
 
                     assert manager._cli_path == "claude"
                     assert manager.workspace == Path("/test/workspace")
-                    # 现在 session 名称是基于 workspace_default_dir 动态生成的
                     assert manager._tmux_session == "cc-test-workspace"
 
     def test_init_iflow_mode(self, mock_settings):
@@ -76,8 +76,8 @@ class TestTmuxSessionManagerInit:
             with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
                 manager = TmuxSessionManager(workspace=workspace)
 
-                # session 名称应该是 "cc-home-user-Workspaces-myproject"
-                assert manager._tmux_session == "cc-home-user-Workspaces-myproject"
+                # session 名称应该是 "cc-workspaces-myproject"（最后 2 级）
+                assert manager._tmux_session == "cc-workspaces-myproject"
 
     def test_init_with_explicit_session_name(self, mock_settings):
         """测试显式指定 session 名称"""
@@ -100,6 +100,7 @@ class TestTmuxSessionManagerInit:
         with patch('src.ai_executor.tmux_session.get_settings', return_value=mock_settings):
             with patch('src.workspace_manager.get_workspace_manager') as mock_wm:
                 mock_wm.return_value.get_current_workspace.return_value = "/test/workspace"
+                mock_wm.return_value._get_session_name.return_value = "cc-test-workspace"
                 with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
                     manager = TmuxSessionManager()
 

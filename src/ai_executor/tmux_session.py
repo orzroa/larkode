@@ -83,19 +83,22 @@ class TmuxSessionManager:
 
     def _get_session_name(self, workspace_path: str) -> str:
         """
-        根据工作空间路径生成 tmux session 名称
+        根据工作空间路径生成 tmux session 名称（使用统一的命名规则）
 
         Args:
             workspace_path: 工作空间路径
 
         Returns:
-            session 名称（如 cc-home-user-Workspaces-github-larkode）
+            session 名称（如 cc-github-larkode 或 cc-larkode）
         """
-        # 将路径转换为 session 名称
-        # /home/user/Workspaces/github/larkode -> cc-home-user-Workspaces-github-larkode
-        path_str = workspace_path.strip('/')
-        session_name = f"cc-{path_str.replace('/', '-')}"
-        return session_name
+        # 使用 WorkspaceManager 的统一命名规则
+        try:
+            from src.workspace_manager import get_workspace_manager
+            workspace_manager = get_workspace_manager()
+            return workspace_manager._get_session_name(workspace_path)
+        except Exception as e:
+            logger.warning(f"使用 WorkspaceManager 生成 session 名称失败：{e}，使用默认 session 'cc'")
+            return "cc"
 
     def _log_debug_info(self):
         """输出当前配置的调试信息"""

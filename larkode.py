@@ -16,7 +16,7 @@ Larkode - 飞书 AI 助手集成
 
 依赖 (使用 uv 管理):
     uv pip install -r requirements.txt --system
-    或者直接运行: uv run --no-project ai_term_lark.py
+    或者直接运行: uv run --no-project larkode.py
 
 外部依赖:
     - Claude Code CLI: npm install -g @anthropic-ai/claude-code
@@ -321,9 +321,12 @@ class ClaudeFeishuService:
             # 连接失败，更新连接状态
             self._multi_platform_manager.set_connected_status(platform_name, False)
         finally:
-            # WebSocket 客户端退出时触发关闭
-            if not self._shutdown_event.is_set():
-                self._shutdown_event.set()
+            # WebSocket 客户端退出，只记录日志，不关闭整个服务
+            # 飞书 SDK 内部有重连机制，会自动重连
+            logger.warning(f"平台 {platform_name} 的 WebSocket 客户端已退出（SDK 会自动重连）")
+            # 不触发关闭事件，让服务继续运行
+            # if not self._shutdown_event.is_set():
+            #     self._shutdown_event.set()
 
     async def stop(self):
         """停止服务"""

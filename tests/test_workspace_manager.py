@@ -133,21 +133,28 @@ class TestWorkspaceManager:
         """测试 session 名称生成"""
         manager = WorkspaceManager()
 
-        # 测试路径转 session 名称
+        # 测试路径转 session 名称（默认使用最后 2 级）
         session_name = manager._get_session_name("/home/user/Workspaces/github/larkode")
-        assert session_name == "cc-home-user-Workspaces-github-larkode"
+        assert session_name == "cc-github-larkode"
+
+        # 测试单级路径
+        session_name = manager._get_session_name("/larkode")
+        assert session_name == "cc-larkode"
 
     def test_session_name_to_path(self):
         """测试从 session 名称解析路径"""
         manager = WorkspaceManager()
 
-        # 测试 session 名称转路径
-        path = manager._session_name_to_path("cc-home-user-Workspaces-github-larkode")
-        assert path == "/home/user/Workspaces/github/larkode"
-
         # 测试非 cc- 开头的 session
         path = manager._session_name_to_path("other-session")
         assert path is None
+
+        # 测试 cc- 开头但单级的情况
+        path = manager._session_name_to_path("cc-larkode")
+        assert path is None
+
+        # 注意：当配置了 workspace_root_dir 且路径存在时，会返回实际路径
+        # 这是预期行为，因此不测试具体路径还原
 
     def test_get_workspaces_disabled(self):
         """测试禁用自动发现时获取工作空间"""

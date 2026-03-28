@@ -22,6 +22,7 @@ class TestWorkspaceManagerSwitch:
         # Mock settings
         mock_settings = Mock()
         mock_settings.workspace_default_dir = None
+        mock_settings.workspace_root_dir = Path("")
         mock_get_settings.return_value = mock_settings
 
         # Mock TmuxSessionManager
@@ -49,6 +50,7 @@ class TestWorkspaceManagerSwitch:
         # Mock settings
         mock_settings = Mock()
         mock_settings.workspace_default_dir = None
+        mock_settings.workspace_root_dir = Path("")
         mock_get_settings.return_value = mock_settings
 
         # Mock subprocess.run for setting env var

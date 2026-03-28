@@ -261,13 +261,41 @@ class WorkspaceManager:
             workspace_path: 工作空间路径
 
         Returns:
-            session 名称（如 cc-home-user-Workspaces-github-larkode）
+            session 名称（如 cc-larkode 或 cc-github-larkode）
         """
-        # 将路径转换为 session 名称
-        # /home/user/Workspaces/github/larkode -> cc-home-user-Workspaces-github-larkode
-        path_str = workspace_path.strip('/')
-        session_name = f"cc-{path_str.replace('/', '-')}"
-        return session_name
+        settings = get_settings()
+
+        # 尝试使用相对于 workspace_root_dir 的路径
+        if settings.workspace_root_dir and str(settings.workspace_root_dir) != ".":
+            try:
+                workspace = Path(workspace_path)
+                root = Path(settings.workspace_root_dir)
+                # 计算相对路径
+                rel_path = workspace.relative_to(root)
+                # cc-larkode 或 cc-github-larkode（只保留项目名）
+                path_str = str(rel_path)
+                if path_str and path_str != ".":
+                    return f"cc-{path_str.replace('/', '-')}"
+            except ValueError:
+                # workspace_path 不在 root 内，回退到下面的逻辑
+                pass
+
+        # 回退策略：只使用最后 2 级路径（如 github/larkode -> github-larkode）
+        path_parts = Path(workspace_path).parts
+        # 过滤掉根目录 '/'
+        path_parts = tuple(p for p in path_parts if p != '/')
+
+        if len(path_parts) >= 2:
+            # 取最后 2 级（转换为小写确保一致性）
+            short_path = "-".join(part.lower() for part in path_parts[-2:])
+        elif len(path_parts) == 1:
+            # 只有 1 级
+            short_path = path_parts[0].lower()
+        else:
+            # 空路径，使用默认
+            short_path = "default"
+
+        return f"cc-{short_path}"
 
     def _session_name_to_path(self, session_name: str) -> Optional[str]:
         """
@@ -282,10 +310,20 @@ class WorkspaceManager:
         if not session_name.startswith('cc-'):
             return None
 
-        # cc-home-user-Workspaces-github-larkode -> /home/user/Workspaces/github/larkode
+        settings = get_settings()
         path_part = session_name[3:]  # 去掉 'cc-'
-        path = '/' + path_part.replace('-', '/')
-        return path
+
+        # 尝试使用 workspace_root_dir 还原完整路径
+        if settings.workspace_root_dir and str(settings.workspace_root_dir) != ".":
+            # cc-larkode -> /root/dir/larkode
+            # cc-github-larkode -> /root/dir/github/larkode
+            full_path = Path(settings.workspace_root_dir) / path_part.replace('-', '/')
+            if full_path.exists():
+                return str(full_path)
+
+        # 无法还原完整路径时返回 None
+        # 这是因为简短的 session 名称（如 cc-larkode）无法唯一确定完整路径
+        return None
 
 
 # 全局单例

@@ -36,9 +36,14 @@ def get_tmux_last_lines(lines: int = 200, workspace: Optional[str] = None) -> st
         # 获取 session 名称
         session_name = None
         if workspace:
-            # 使用指定的工作空间生成 session 名称
-            path_str = workspace.strip('/')
-            session_name = f"cc-{path_str.replace('/', '-')}"
+            # 使用 WorkspaceManager 生成统一的 session 名称
+            try:
+                from src.workspace_manager import get_workspace_manager
+                workspace_manager = get_workspace_manager()
+                session_name = workspace_manager._get_session_name(workspace)
+            except Exception as e:
+                logger.warning(f"生成 session 名称失败：{e}，使用默认 session 'cc'")
+                session_name = "cc"
         else:
             # 使用 WorkspaceManager 获取当前工作空间
             try:
@@ -47,8 +52,7 @@ def get_tmux_last_lines(lines: int = 200, workspace: Optional[str] = None) -> st
                 current_workspace = workspace_manager.get_current_workspace()
 
                 if current_workspace:
-                    path_str = current_workspace.strip('/')
-                    session_name = f"cc-{path_str.replace('/', '-')}"
+                    session_name = workspace_manager._get_session_name(current_workspace)
                 else:
                     # 没有当前工作空间，使用默认 fallback
                     session_name = "cc"

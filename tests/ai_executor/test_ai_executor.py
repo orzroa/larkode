@@ -74,6 +74,7 @@ class TestAIAutoRestart:
         # Mock WorkspaceManager to return test workspace
         mock_workspace_manager = MagicMock()
         mock_workspace_manager.get_current_workspace.return_value = "/test/workspace"
+        mock_workspace_manager._get_session_name.return_value = "cc-test-workspace"
         mock_get_workspace_manager.return_value = mock_workspace_manager
 
         # Mock TMUX 环境变量，避免检测到真实的 tmux session
@@ -257,6 +258,7 @@ class TestAIAutoRestart:
         # Mock WorkspaceManager to return test workspace
         mock_workspace_manager = MagicMock()
         mock_workspace_manager.get_current_workspace.return_value = "/test/workspace"
+        mock_workspace_manager._get_session_name.return_value = "cc-test-workspace"
         mock_get_workspace_manager.return_value = mock_workspace_manager
 
         # Mock TMUX 环境变量

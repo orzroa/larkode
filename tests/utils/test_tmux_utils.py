@@ -26,10 +26,10 @@ class TestTmuxUtils:
 
             result = get_tmux_last_lines(lines=100, workspace="/home/user/project")
 
-            # 验证 session 名称生成
+            # 验证 session 名称生成（新命名规则：最后 2 级）
             call_args = mock_run.call_args[0][0]
             # call_args 是列表，检查第4个元素（session 名称）
-            assert "cc-home-user-project:0.0" in call_args[4]
+            assert "cc-user-project:0.0" in call_args[4]
 
     def test_get_tmux_last_lines_no_output(self, mock_settings):
         """测试 tmux 无输出"""
@@ -126,9 +126,9 @@ class TestTmuxUtils:
 
             result = get_tmux_last_lines(lines=100, workspace="/a/b/c/d/e")
 
-            # 验证 session 名称正确生成
+            # 验证 session 名称正确生成（新命名规则：最后 2 级）
             call_args = mock_run.call_args[0][0]
-            assert "cc-a-b-c-d-e:0.0" in call_args[4]
+            assert "cc-d-e:0.0" in call_args[4]
 
     def test_get_tmux_last_lines_default_lines(self, mock_settings):
         """测试默认行数"""
