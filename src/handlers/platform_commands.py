@@ -204,8 +204,7 @@ MiniMax 多媒体能力（#mm help 查看详情）
             current_workspace = workspace_manager.get_current_workspace()
 
             if current_workspace:
-                path_str = current_workspace.strip('/')
-                session_name = f"cc-{path_str.replace('/', '-')}"
+                session_name = workspace_manager._get_session_name(current_workspace)
             else:
                 # 没有当前工作空间，使用默认
                 session_name = "cc"

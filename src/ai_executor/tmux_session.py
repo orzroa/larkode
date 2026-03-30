@@ -3,7 +3,6 @@ Tmux 会话管理
 """
 import asyncio
 import os
-import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -250,19 +249,12 @@ class TmuxSessionManager:
                       capture_output=True)
             logger.info(f"  → 已清理旧 session")
 
-            # 获取 ccr 所在目录，确保在项目使用 .nvmdrc 切换 node 版本后仍能找到 ccr
-            ccr_path = shutil.which("ccr")
-            ccr_dir = os.path.dirname(ccr_path) if ccr_path else None
-
-            # 构建 PATH 前缀，确保 ccr 所在目录在 PATH 中
-            path_prefix = f"PATH={ccr_dir}:$PATH " if ccr_dir else ""
-
             # 创建新的 session，启动 AI
             cmd = [
                 "tmux", "new-session", "-d",
                 "-s", self._tmux_session,
                 "-n", "ai",
-                f"{path_prefix}cd {self.workspace} && {self._cli_path}"
+                f"cd {self.workspace} && {self._cli_path}"
             ]
             logger.info(f"  → 执行: {' '.join(cmd)}")
 
@@ -325,16 +317,11 @@ class TmuxSessionManager:
             logger.info(f"🚀 在 tmux session '{self._tmux_session}' 中启动 AI")
             logger.info(f"  → 启动命令: {self._cli_path}")
 
-            # 获取 ccr 所在目录，确保在项目使用 .nvmdrc 切换 node 版本后仍能找到 ccr
-            ccr_path = shutil.which("ccr")
-            ccr_dir = os.path.dirname(ccr_path) if ccr_path else None
-            path_prefix = f"PATH={ccr_dir}:$PATH " if ccr_dir else ""
-
             # 发送启动 AI 的命令到 tmux session
             # 使用环境变量标记这是启动命令，让 hook 忽略
             cmd = [
                 "tmux", "send-keys", "-t", f"{self._tmux_session}:0.0",
-                f"CLAUDE_STARTUP=1 {path_prefix}{self._cli_path}"
+                f"CLAUDE_STARTUP=1 {self._cli_path}"
             ]
             logger.info(f"  → tmux send-keys: {' '.join(cmd)}")
             subprocess.run(cmd, check=True)
