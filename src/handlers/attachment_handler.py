@@ -103,7 +103,8 @@ class AttachmentHandler:
             logger.info(f"已缓存用户图片，用于 p2v: {image_path}")
 
             # 将图片路径作为命令传递给 AI 助手
-            command = f"Read the image at {image_path}"
+            # 注意：Claude Code会截断某些命令格式，使用完整的描述性句子
+            command = f"用户上传了一张图片，路径是：{image_path}"
 
             # 保存消息
             from src.models import MessageDirection, MessageSource
@@ -162,7 +163,8 @@ class AttachmentHandler:
             logger.info(f"已缓存用户图片，用于 p2v: {image_path}")
 
             # 将图片路径作为命令传递给 AI 助手
-            command = f"Read the image at {image_path}"
+            # 注意：Claude Code会截断某些命令格式，使用完整的描述性句子
+            command = f"用户上传了一张图片，路径是：{image_path}"
 
             # 保存消息
             from src.models import MessageDirection, MessageSource

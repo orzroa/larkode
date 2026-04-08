@@ -82,7 +82,9 @@ def _get_save_path(file_key: str, save_dir: Optional[Path] = None) -> Path:
     save_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
-    file_path = save_dir / f"{timestamp}_{file_key}"
+    # 使用 file_key 的前8字符，避免路径过长
+    short_key = file_key[:8] if len(file_key) > 8 else file_key
+    file_path = save_dir / f"{timestamp}_{short_key}"
     return file_path
 
 
@@ -131,7 +133,15 @@ async def download_file(
         if not file_name:
             file_name = f"feishu_{file_key}.txt"
 
-        # 生成保存路径
+        # 限制文件名长度，避免路径过长导致 stdin 截断
+        max_filename_len = 50  # 限制文件名长度
+        if len(file_name) > max_filename_len:
+            # 保持扩展名
+            name_part, ext = file_name.rsplit('.', 1) if '.' in file_name else (file_name, '')
+            ext = '.' + ext if ext else ''
+            file_name = f"{name_part[:max_filename_len - len(ext)]}{ext}"
+
+        # 生成保存路径（使用短前缀避免路径过长）
         file_path = _get_save_path(file_key, save_dir)
         file_path = file_path.parent / f"{file_path.stem}_{file_name}"
 
