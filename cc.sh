@@ -84,6 +84,12 @@ CLI_PATH="${CLI_PATH%\"}"
 # 使用 sed 替换，而不是 eval
 CLI_PATH=$(echo "$CLI_PATH" | sed "s|~|$HOME|g" | sed "s|\$HOME|$HOME|g")
 
+# 读取 WORKSPACE_ROOT_DIR 配置（用于生成 session 名称）
+WORKSPACE_ROOT_DIR=$(awk -F'=' '/^WORKSPACE_ROOT_DIR=/ {print substr($0, index($0, "=") + 1)}' "$LARKODE_ENV")
+WORKSPACE_ROOT_DIR="${WORKSPACE_ROOT_DIR#\"}"
+WORKSPACE_ROOT_DIR="${WORKSPACE_ROOT_DIR%\"}"
+WORKSPACE_ROOT_DIR=$(echo "$WORKSPACE_ROOT_DIR" | sed "s|~|$HOME|g" | sed "s|\$HOME|$HOME|g")
+
 echo "📋 启动命令: $CLI_PATH"
 echo ""
 
@@ -119,10 +125,36 @@ if [ -n "$TMUX" ]; then
     exit 1
 fi
 
-# 从工作空间路径生成 session 名称
-# 使用项目目录名（如 larkode -> cc-larkode）
-PROJECT_NAME=$(basename "$WORKSPACE")
-SESSION_NAME="cc-${PROJECT_NAME}"
+# 从工作空间路径生成 session 名称（使用与 Python 相同的逻辑）
+generate_session_name() {
+    local workspace_path="$1"
+    local workspace_root="${WORKSPACE_ROOT_DIR:-$HOME/Workspaces}"
+
+    # 尝试使用相对于 workspace_root 的路径
+    if [ -d "$workspace_root" ]; then
+        # 计算相对路径（去掉 workspace_root 部分）
+        local rel_path="${workspace_path#$workspace_root/}"
+        if [ "$rel_path" != "$workspace_path" ] && [ -n "$rel_path" ]; then
+            # 使用相对路径：dds/cccframework -> dds-cccframework
+            echo "cc-${rel_path//\//-}"
+            return 0
+        fi
+    fi
+
+    # 回退策略：使用最后 2 级路径
+    local parent_dir=$(dirname "$workspace_path")
+    local project_name=$(basename "$workspace_path")
+    local parent_name=$(basename "$parent_dir")
+
+    # 如果父目录不是 Workspaces 或根目录，包含父目录名
+    if [ "$parent_name" != "Workspaces" ] && [ "$parent_name" != "/" ]; then
+        echo "cc-${parent_name}-${project_name}"
+    else
+        echo "cc-${project_name}"
+    fi
+}
+
+SESSION_NAME=$(generate_session_name "$WORKSPACE")
 
 echo "📋 工作空间: $WORKSPACE"
 echo "📋 Session: $SESSION_NAME"
