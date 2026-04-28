@@ -156,7 +156,6 @@ generate_session_name() {
 
 SESSION_NAME=$(generate_session_name "$WORKSPACE")
 
-echo "📋 工作空间: $WORKSPACE"
 echo "📋 Session: $SESSION_NAME"
 echo "📋 CLI 命令: $CLI_PATH"
 echo ""
