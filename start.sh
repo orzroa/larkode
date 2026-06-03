@@ -39,17 +39,26 @@ if [ -f "$PID_FILE" ]; then
     fi
 fi
 
-# 安装依赖 (使用 uv)
+# 确保虚拟环境存在（避免 PEP 668 externally-managed-environment 错误）
+if [ ! -d ".venv" ]; then
+    echo "创建虚拟环境 .venv..."
+    uv venv
+fi
+
+# 在虚拟环境中安装依赖
 echo "检查依赖..."
-uv pip install -r requirements.txt --system 2>/dev/null || pip3 install -q -r requirements.txt
+uv pip install -r requirements.txt || {
+    echo "错误: 依赖安装失败"
+    exit 1
+}
 
 # 清缓存
 find . -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 find . -name "*.pyc" -delete 2>/dev/null || true
 
-# 启动服务
+# 启动服务（使用虚拟环境的 Python，避免依赖缺失）
 echo "启动服务..."
-nohup uv run --no-project larkode.py > logs/stdout.log 2>&1 &
+nohup .venv/bin/python larkode.py > logs/stdout.log 2>&1 &
 PID=$!
 echo $PID > "$PID_FILE"
 echo "服务已启动 (PID: $PID)"
