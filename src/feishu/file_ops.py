@@ -1,7 +1,6 @@
 """
 飞书文件操作：下载、上传
 """
-import imghdr
 import json
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +16,48 @@ try:
 except ImportError:
     import logging
     logger = logging.getLogger(__name__)
+
+
+def _detect_image_extension(file_path: Path) -> Optional[str]:
+    """
+    通过文件头魔数检测图片类型
+
+    Python 3.13 起 imghdr 已被移除（PEP 594），改用自研实现以避免第三方依赖。
+    支持的格式与 imghdr.what() 常见输出保持一致。
+
+    Args:
+        file_path: 文件路径
+
+    Returns:
+        Optional[str]: 图片类型标识（如 "jpeg", "png"），无法识别返回 None
+    """
+    try:
+        with open(file_path, 'rb') as f:
+            header = f.read(12)
+
+        # PNG: 89 50 4E 47 0D 0A 1A 0A
+        if header.startswith(b'\x89PNG\r\n\x1a\n'):
+            return 'png'
+        # JPEG: FF D8 FF
+        if header.startswith(b'\xff\xd8\xff'):
+            return 'jpeg'
+        # GIF: GIF87a 或 GIF89a（前 4 字节均为 "GIF8"）
+        if header[:4] == b'GIF8':
+            return 'gif'
+        # BMP: 42 4D
+        if header[:2] == b'BM':
+            return 'bmp'
+        # WebP: RIFF .... WEBP（前 4 字节 RIFF，第 8-12 字节 WEBP）
+        if header[:4] == b'RIFF' and header[8:12] == b'WEBP':
+            return 'webp'
+        # TIFF: II*\x00 (little-endian) 或 MM\x00* (big-endian)
+        if header[:4] in (b'II*\x00', b'MM\x00*'):
+            return 'tiff'
+
+        return None
+    except Exception as e:
+        logger.error(f"检测图片类型时出错: {e}")
+        return None
 
 
 def _detect_audio_extension(file_path: Path) -> str:
@@ -156,7 +197,7 @@ async def download_file(
 
         if file_path.exists():
             current_ext = file_path.suffix.lower()
-            detected_type = imghdr.what(str(file_path))
+            detected_type = _detect_image_extension(file_path)
 
             if detected_type:
                 # 分支1：识别为图片

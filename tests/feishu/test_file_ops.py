@@ -136,7 +136,7 @@ class TestFileTypeDetectionBranches:
 
     def test_image_file_not_detected_as_audio(self):
         """测试图片文件不会被识别为音频"""
-        import imghdr
+        from src.feishu.file_ops import _detect_image_extension
 
         # 创建一个简单的 PNG 文件头
         png_header = (
@@ -152,23 +152,24 @@ class TestFileTypeDetectionBranches:
             f.flush()
             path = Path(f.name)
 
-            # 验证 imghdr 能识别为 PNG
-            detected = imghdr.what(str(path))
-            assert detected == "png", f"imghdr should detect PNG, got {detected}"
+            # 验证 _detect_image_extension 能识别为 PNG
+            detected = _detect_image_extension(path)
+            assert detected == "png", f"_detect_image_extension should detect PNG, got {detected}"
 
     def test_audio_file_not_detected_as_image(self):
         """测试音频文件不会被识别为图片"""
-        import imghdr
+        from src.feishu.file_ops import _detect_image_extension
 
         # 创建一个 AMR 文件头
         with tempfile.NamedTemporaryFile(suffix=".tmp", delete=False) as f:
             f.write(b"#AMR\n")
             f.write(b"\x00" * 100)
             f.flush()
+            path = Path(f.name)
 
-            # imghdr 应该返回 None
-            detected = imghdr.what(f.name)
-            assert detected is None, f"imghdr should not detect audio as image, got {detected}"
+            # _detect_image_extension 应该返回 None
+            detected = _detect_image_extension(path)
+            assert detected is None, f"_detect_image_extension should not detect audio as image, got {detected}"
 
 
 class TestVoiceMessageHandling:
