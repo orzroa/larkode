@@ -198,7 +198,15 @@ FEISHU_MESSAGE_RECEIVE_ID_TYPE=union_id   # 或 open_id / user_id，需与上面
 }
 ```
 
-**第 5 步：启动服务**
+**第 6 步：安装 Claude Code Skills（可选）**
+
+安装后，Claude Code 可以使用「发文件到飞书」等快捷技能。
+
+```bash
+./install-skills.sh
+```
+
+**第 7 步：启动服务**
 
 ```bash
 ./start.sh
@@ -300,6 +308,7 @@ larkode/
 │   ├── ai_session_manager.py
 │   ├── task_manager.py
 │   └── message_handler.py
+├── skills/                  # Claude Code Skills
 ├── tests/                   # 测试目录
 │   ├── conftest.py          # 全局 fixtures
 │   ├── test_*.py            # 单元测试
@@ -308,6 +317,7 @@ larkode/
 ├── logs/                    # 日志文件
 ├── docs/                    # 文档
 ├── larkode.py               # 入口
+├── install-skills.sh        # Skill 安装脚本
 └── start.sh                 # 启动脚本
 ```
 
@@ -564,7 +574,15 @@ Edit `~/.claude/settings.json`, add hooks configuration:
 }
 ```
 
-**Step 5: Start the service**
+**Step 6: Install Claude Code Skills (optional)**
+
+After installation, Claude Code can use shortcuts like "send files to Feishu".
+
+```bash
+./install-skills.sh
+```
+
+**Step 7: Start the service**
 
 ```bash
 ./start.sh
@@ -666,6 +684,7 @@ larkode/
 │   ├── ai_session_manager.py
 │   ├── task_manager.py
 │   └── message_handler.py
+├── skills/                  # Claude Code Skills
 ├── tests/                   # Test directory
 │   ├── conftest.py          # Global fixtures
 │   ├── test_*.py            # Unit tests
@@ -674,6 +693,7 @@ larkode/
 ├── logs/                    # Log files
 ├── docs/                    # Documentation
 ├── larkode.py               # Entry point
+├── install-skills.sh        # Skill install script
 └── start.sh                 # Startup script
 ```
 
