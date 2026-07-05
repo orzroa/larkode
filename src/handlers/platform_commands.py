@@ -1,6 +1,7 @@
 """
 平台命令处理器
 处理 #help, #cancel, #history, #shot, #model 等平台命令
+未识别的命令返回 False
 """
 import json
 import os
@@ -53,32 +54,36 @@ class PlatformCommands:
     def set_send_callback(self, send_via_sender):
         """设置发送回调函数"""
         self._send_via_sender = send_via_sender
-    async def handle_command(self, user_id: str, command: str):
+    async def handle_command(self, user_id: str, command: str) -> bool:
         """
         处理平台系统命令
         Args:
             user_id: 用户 ID
             command: 命令内容
+        Returns:
+            bool: True 表示已识别并处理，False 表示未识别（上游应转为 AI 命令）
         """
         parts = command.split(maxsplit=1)
         cmd = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
-        if cmd == "#help":
-            await self._cmd_help(user_id)
-        elif cmd == "#cancel":
-            await self._cmd_cancel(user_id, args)
-        elif cmd == "#history":
-            await self._cmd_history(user_id, args)
-        elif cmd == "#shot":
-            await self._cmd_shot(user_id, args)
-        elif cmd == "#model":
-            await self._cmd_model(user_id, args)
-        elif cmd == "#ws":
-            await self._cmd_workspace(user_id, args)
-        elif cmd == "#mm":
-            await self._cmd_minimax(user_id, args)
-        else:
-            await self._send_error(user_id, f"未知命令: {cmd}，请输入 #help 查看帮助")
+        match cmd:
+            case "#help":
+                await self._cmd_help(user_id)
+            case "#cancel":
+                await self._cmd_cancel(user_id, args)
+            case "#history":
+                await self._cmd_history(user_id, args)
+            case "#shot":
+                await self._cmd_shot(user_id, args)
+            case "#model":
+                await self._cmd_model(user_id, args)
+            case "#ws":
+                await self._cmd_workspace(user_id, args)
+            case "#mm":
+                await self._cmd_minimax(user_id, args)
+            case _:
+                return False
+        return True
 
     async def _cmd_model(self, user_id: str, args: str):
         """处理 #model 命令 - CCR 模型切换"""

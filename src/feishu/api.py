@@ -49,6 +49,19 @@ class FeishuAPI:
             str: 发送成功返回消息ID，失败返回空字符串
         """
         logger.info(f"FeishuAPI.send_message 被调用: user_id={user_id}")
+
+        # 如果配置是 union_id 类型，但传入的是 open_id，自动转换
+        receive_id = user_id
+        receive_id_type = get_settings().FEISHU_MESSAGE_RECEIVE_ID_TYPE
+        if receive_id_type == "union_id" and user_id.startswith("ou_"):
+            logger.info(f"open_id → union_id 转换中: {user_id}")
+            union_id = await self.open_id_to_union_id(user_id)
+            if union_id:
+                receive_id = union_id
+                logger.info(f"转换为 union_id: {receive_id}")
+            else:
+                logger.warning(f"open_id 转 union_id 失败，将使用原 ID")
+
         try:
             import lark_oapi as lark
             import json as json_mod
@@ -77,11 +90,11 @@ class FeishuAPI:
                 content = json_mod.dumps({"text": str(message)}, ensure_ascii=False)
 
             request = lark.api.im.v1.CreateMessageRequest.builder() \
-                .receive_id_type(get_settings().FEISHU_MESSAGE_RECEIVE_ID_TYPE) \
+                .receive_id_type(receive_id_type) \
                 .request_body(
                     lark.api.im.v1.CreateMessageRequestBody.builder()
                     .msg_type(msg_type)
-                    .receive_id(user_id)
+                    .receive_id(receive_id)
                     .content(content)
                     .build()
                 ) \
@@ -154,17 +167,38 @@ class FeishuAPI:
             response = client.contact.v3.user.get(request)
 
             if response.success() and response.data:
+                user = response.data.user
                 return {
                     "user_id": user_id,
-                    "name": response.data.name or "",
-                    "avatar": response.data.avatar_72x72 or ""
+                    "union_id": getattr(user, "union_id", "") or "",
+                    "name": getattr(user, "name", "") or "",
+                    "avatar": getattr(user, "avatar", "") or ""
                 }
 
+            logger.warning(f"获取用户信息失败: {response.code} - {response.msg}")
             return None
 
         except Exception as e:
             logger.error(f"获取用户信息失败: {e}")
             return None
+
+    async def open_id_to_union_id(self, open_id: str) -> Optional[str]:
+        """
+        将 open_id 转换为 union_id
+
+        Args:
+            open_id: 用户的 open_id
+
+        Returns:
+            union_id，失败返回 None
+        """
+        if not open_id or not open_id.startswith("ou_"):
+            return None
+
+        user_info = await self.get_user_info(open_id)
+        if user_info and user_info.get("union_id"):
+            return user_info["union_id"]
+        return None
 
     async def get_message(self, msg_id: str) -> Optional[Dict[str, Any]]:
         """

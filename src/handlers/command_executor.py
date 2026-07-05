@@ -104,7 +104,15 @@ class CommandExecutor:
                 # 平台系统命令 - 使用子处理器处理
                 logger.info(f"识别为平台系统命令：{command}")
                 if self._platform_commands:
-                    await self._platform_commands.handle_command(user_id, command)
+                    handled = await self._platform_commands.handle_command(user_id, command)
+                    if not handled:
+                        # 未识别的 #xxx 命令，去掉 # 前缀后在 larkode 空间执行
+                        ai_command = command[1:].strip()
+                        if ai_command:
+                            logger.info(f"未识别命令 {command}，转为 AI 命令在 larkode 空间执行: {ai_command}")
+                            await self._execute_in_larkode_space(user_id, ai_command)
+                        else:
+                            await self.send_error(user_id, f"未知命令，请输入 #help 查看帮助")
             else:
                 # AI 助手命令 - 保存消息并执行
                 logger.info(f"识别为 AI 助手命令：{command}")
@@ -125,6 +133,39 @@ class CommandExecutor:
         except Exception as e:
             logger.error(f"处理命令时出错：{e}", exc_info=True)
             await self.send_error(user_id, f"命令处理失败：{str(e)}")
+
+    async def _execute_in_larkode_space(self, user_id: str, command: str):
+        """
+        在 larkode 空间执行 AI 命令（临时切换空间，执行后切回）
+
+        Args:
+            user_id: 用户 ID
+            command: AI 命令内容
+        """
+        from src.workspace_manager import get_workspace_manager
+
+        logger.info(f"临时切换到 larkode 空间执行命令: {command}")
+
+        settings = get_settings()
+        larkode_path = settings.workspace_default_dir
+
+        workspace_manager = get_workspace_manager()
+        original_workspace = workspace_manager.get_current_workspace()
+
+        try:
+            # 临时切换到 larkode 空间（如果原本不是）
+            if original_workspace != larkode_path:
+                workspace_manager.switch_workspace(larkode_path)
+            # 复用 execute_command 逻辑
+            await self.execute_command(user_id, command)
+        except Exception as e:
+            logger.error(f"在 larkode 空间执行命令失败: {e}", exc_info=True)
+            await self.send_error(user_id, f"执行失败: {e}")
+        finally:
+            # 恢复原工作空间（如果原本不是 larkode）
+            if original_workspace and original_workspace != larkode_path:
+                workspace_manager.switch_workspace(original_workspace)
+                logger.info(f"已恢复原工作空间: {original_workspace}")
 
     async def execute_command(self, user_id: str, command: str, seq_id: Optional[int] = None):
         """

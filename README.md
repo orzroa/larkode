@@ -146,7 +146,18 @@ WORKSPACE_DEFAULT_DIR=$HOME/Workspaces/larkode
 
 5.1 获取你的飞书用户 ID：
 
-> 详细方法见：[飞书官方文档 - 获取 openId](https://open.feishu.cn/document/faq/trouble-shooting/how-to-obtain-openid)
+> 支持 `open_id`、`user_id`、`union_id` 三种格式，推荐使用 **`union_id`**（跨应用通用）
+
+**方法 A：Union ID（推荐，跨应用可用）**
+
+1. 在飞书开放平台后台申请 `contact:contact.base:readonly` 权限
+2. 在 API 调试台调用「获取用户信息」接口：
+   ```
+   GET /open-apis/contact/v3/users/{open_id}?user_id_type=open_id
+   ```
+3. 响应中的 `union_id` 字段即为所需的 union_id（格式如 `on_xxxxx`）
+
+**方法 B：Open ID（简单，单应用）**
 
 1. 登录 [API 调试台](https://open.feishu.cn/api-explorer)
 2. 找到「发送消息」接口
@@ -157,7 +168,8 @@ WORKSPACE_DEFAULT_DIR=$HOME/Workspaces/larkode
 
 ```bash
 # 在 .env 文件中添加
-FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
+FEISHU_HOOK_NOTIFICATION_USER_ID=<你的用户ID>
+FEISHU_MESSAGE_RECEIVE_ID_TYPE=union_id   # 或 open_id / user_id，需与上面对应
 ```
 
 5.3 配置 Claude Code 设置：
@@ -200,13 +212,15 @@ FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
 
 | 命令 | 说明 |
 |------|------|
-| `任意内容` 或 `/命令` | 执行 Claude Code 命令 |
+| `任意内容` 或 `/命令` | 在当前工作空间执行 Claude Code 命令 |
 | `#help` | 显示帮助信息 |
 | `#cancel` | 取消当前运行 |
 | `#history [数量]` | 查看历史消息（默认10条） |
 | `#shot [行数]` | 查看截屏（默认200行，如 `#shot 500`） |
 | `#model [序号]` | 查看或切换模型（无参数显示列表） |
 | `#ws [序号/名称]` | 查看或切换工作空间（自动发现项目列表） |
+
+> **💡 未识别的 `#xxx` 命令**：会自动去掉 `#` 前缀（如 `#查看代码` → `查看代码`），**固定在 larkode 空间** 作为 AI 命令执行（不影响当前工作空间）。
 
 #### MiniMax 多媒体命令 (`#mm`)
 
@@ -498,7 +512,18 @@ Once configured, AI will proactively notify you when tasks complete or confirmat
 
 5.1 Get your Feishu user ID:
 
-> See [Feishu Official Docs - Get openId](https://open.feishu.cn/document/faq/trouble-shooting/how-to-obtain-openid) for detailed methods.
+> Supports `open_id`, `user_id`, `union_id` formats. **`union_id` recommended** (works across apps)
+
+**Method A: Union ID (recommended, cross-app)**
+
+1. Apply for `contact:contact.base:readonly` permission in Feishu open platform
+2. Call "Get User Info" API in the debugger:
+   ```
+   GET /open-apis/contact/v3/users/{open_id}?user_id_type=open_id
+   ```
+3. The `union_id` field in the response is your union_id (format like `on_xxxxx`)
+
+**Method B: Open ID (simple, single app)**
 
 1. Login to [API Debugger](https://open.feishu.cn/api-explorer)
 2. Find the "Send Message" API
@@ -509,7 +534,8 @@ Once configured, AI will proactively notify you when tasks complete or confirmat
 
 ```bash
 # Add to .env file
-FEISHU_HOOK_NOTIFICATION_USER_ID=ou_xxxxxxxxxxxxxxxx
+FEISHU_HOOK_NOTIFICATION_USER_ID=<your_user_id>
+FEISHU_MESSAGE_RECEIVE_ID_TYPE=union_id   # or open_id / user_id, must match above
 ```
 
 5.3 Configure Claude Code settings:
@@ -552,13 +578,15 @@ Edit `~/.claude/settings.json`, add hooks configuration:
 
 | Command | Description |
 |---------|-------------|
-| `any text` or `/command` | Execute Claude Code command |
+| `any text` or `/command` | Execute Claude Code command in current workspace |
 | `#help` | Show help |
 | `#cancel` | Cancel current execution |
 | `#history [count]` | View message history (default 10) |
 | `#shot [lines]` | View screenshot (default 200, e.g., `#shot 500`) |
 | `#model [index]` | View or switch model (no arg shows list) |
 | `#ws [index/name]` | View or switch workspace (auto-discover project list) |
+
+> **💡 Unrecognized `#xxx` commands**: The `#` prefix is automatically removed (e.g., `#查看代码` → `查看代码`) and executed as an AI command **in the larkode workspace** (without affecting the current workspace).
 
 #### MiniMax Multimedia Commands (`#mm`)
 

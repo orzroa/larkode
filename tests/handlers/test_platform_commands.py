@@ -108,12 +108,28 @@ class TestPlatformCommands:
             await platform_commands.handle_command("user_123", "#model")
 
     @pytest.mark.asyncio
-    async def test_handle_command_unknown(self, platform_commands):
-        """测试处理未知命令"""
-        with patch.object(platform_commands, '_send_error', new_callable=AsyncMock) as mock_error:
-            await platform_commands.handle_command("user_123", "#unknown")
+    async def test_handle_command_unknown_returns_false(self, platform_commands):
+        """测试处理未知命令 - 应返回 False"""
+        result = await platform_commands.handle_command("user_123", "#查看代码结构")
 
-            mock_error.assert_called()
+        # 未识别应返回 False
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_handle_command_known_returns_true(self, platform_commands):
+        """测试处理已知命令 - 应返回 True"""
+        result = await platform_commands.handle_command("user_123", "#help")
+
+        # 已识别应返回 True
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_handle_command_only_hash_returns_false(self, platform_commands):
+        """测试处理只有 # 符号的命令 - 应返回 False"""
+        result = await platform_commands.handle_command("user_123", "#")
+
+        # 只有一个 # 也未识别
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_cmd_help_with_card_dispatcher(self, platform_commands, mock_card_dispatcher):
