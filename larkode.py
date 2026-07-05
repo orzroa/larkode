@@ -47,6 +47,7 @@ from src.factories.platform_factory import IMPlatformFactory
 from src.interfaces.im_platform import PlatformConfig
 from src.handlers.event_handlers import create_event_handlers
 from src.handlers.interaction_monitor import InteractionMonitor
+from src.queue_monitor import QueueMonitor
 
 # 配置日志 - 优先使用新的日志系统
 try:
@@ -94,6 +95,7 @@ class ClaudeFeishuService:
         multi_platform_manager = self._multi_platform_manager
         self._tasks: list[asyncio.Task] = []
         self._interaction_monitor_task: asyncio.Task = None
+        self._queue_monitor_task: asyncio.Task = None
 
         # 创建事件处理器
         self._do_p2_im_message_receive_v1, self._do_p2_card_action_trigger = create_event_handlers(
@@ -102,6 +104,9 @@ class ClaudeFeishuService:
 
         # 创建交互监控器
         self._interaction_monitor = InteractionMonitor(interaction_manager)
+
+        # 创建队列监控器
+        self._queue_monitor = QueueMonitor(feishu_api_instance)
 
     async def _initialize_multi_platform(self):
         """初始化多平台支持"""
@@ -251,6 +256,12 @@ class ClaudeFeishuService:
         )
         logger.info("交互请求监控已启动")
 
+        # 启动队列监控任务
+        self._queue_monitor_task = asyncio.create_task(
+            self._queue_monitor.monitor_queue()
+        )
+        logger.info("队列监控已启动")
+
         # 等待关闭信号
         await self._shutdown_event.wait()
 
@@ -340,6 +351,15 @@ class ClaudeFeishuService:
             except asyncio.CancelledError:
                 pass
             logger.info("交互请求监控已停止")
+
+        # 停止队列监控任务
+        if self._queue_monitor_task and not self._queue_monitor_task.done():
+            self._queue_monitor_task.cancel()
+            try:
+                await self._queue_monitor_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("队列监控已停止")
 
         # 停止所有 WebSocket 客户端
         for platform_name, ws_thread in self._ws_threads.items():

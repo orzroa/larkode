@@ -336,7 +336,8 @@ async def upload_file(
 async def send_file_message(
     app_secret: str,
     user_id: str,
-    file_key: str
+    file_key: str,
+    receive_id_type: str = None
 ) -> bool:
     """
     发送文件消息
@@ -345,6 +346,7 @@ async def send_file_message(
         app_secret: 飞书应用密钥
         user_id: 用户 ID
         file_key: 文件的 file_key
+        receive_id_type: ID 类型（open_id, union_id, user_id），默认从配置读取
 
     Returns:
         bool: 发送成功返回 True，失败返回 False
@@ -354,10 +356,13 @@ async def send_file_message(
 
         client = _create_client(app_secret)
 
+        # 使用传入的 receive_id_type，或从配置读取
+        id_type = receive_id_type or get_settings().FEISHU_MESSAGE_RECEIVE_ID_TYPE
+
         # 构建消息请求
         content = json.dumps({"file_key": file_key})
         request = lark.api.im.v1.CreateMessageRequest.builder() \
-            .receive_id_type(get_settings().FEISHU_MESSAGE_RECEIVE_ID_TYPE) \
+            .receive_id_type(id_type) \
             .request_body(
                 lark.api.im.v1.CreateMessageRequestBody.builder()
                 .msg_type("file")
