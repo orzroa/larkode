@@ -280,6 +280,29 @@ class TmuxSessionManager:
             logger.error(f"创建 tmux session 失败: {e}", exc_info=True)
             return False
 
+    def _ensure_dependencies(self) -> None:
+        """在 tmux/AI 启动前，确保依赖服务（CCR、LUT 等）已就绪。
+
+        失败时不阻塞启动：依赖拉起失败只记录日志，由后续 AI 自己去恢复。
+        """
+        try:
+            from src.dependency_checker import get_dependency_checker
+            checker = get_dependency_checker()
+            # 首次启动时强制检查，避免被节流掉
+            summary = checker.ensure_services_running_sync(force=True)
+        except Exception as e:
+            logger.error(f"依赖服务检查失败: {e}", exc_info=True)
+            return
+
+        if summary.skipped:
+            return
+
+        for r in summary.results:
+            if r.started:
+                logger.info(f"  → 依赖服务 {r.service.name} 已自动启动")
+            elif r.error:
+                logger.warning(f"  → 依赖服务 {r.service.name} 启动失败: {r.error}")
+
     def _ensure_tmux_session(self) -> tuple[bool, bool]:
         """确保 tmux session 存在且 AI 进程在运行
 
@@ -287,6 +310,10 @@ class TmuxSessionManager:
             tuple[bool, bool]: (是否成功, 是否刚刚启动了新的 AI 进程)
         """
         logger.info("🔍 检查 tmux session 状态...")
+
+        # 在启动 tmux/AI 之前，先确保依赖服务（CCR、LUT 等）已就绪。
+        # 该检查不依赖 AI —— 本身就是在 AI 不可用时也要工作。
+        self._ensure_dependencies()
 
         # 检查 tmux session 是否存在
         has_tmux = self._check_tmux_session()

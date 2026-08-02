@@ -151,6 +151,17 @@ class Settings(BaseSettings):
     streaming_stable_threshold: int = Field(default=2, description="输出稳定阈值（连续多少次不变认为完成）")
     streaming_capture_lines: int = Field(default=10, description="流式输出时抓取 tmux 的行数")
 
+    # ==================== 依赖服务配置 ====================
+    # 收到外部指令时自动检查的依赖服务（如 ccr、lut），未启动则自动拉起
+    dependency_check_enabled: bool = Field(default=True, description="是否启用依赖服务自动检查")
+    dependency_check_interval: float = Field(default=30.0, description="依赖服务检查间隔（秒），避免每个命令都执行 status")
+    dependent_services: str = Field(
+        default="",
+        description="依赖服务配置（JSON 列表），每项包含 name/start_cmd/status_cmd/running_pattern"
+    )
+    dependency_start_timeout: float = Field(default=15.0, description="依赖服务启动超时（秒）")
+    dependency_status_timeout: float = Field(default=5.0, description="依赖服务状态检测超时（秒）")
+
     # ==================== Validators ====================
 
     @field_validator('workspace_root_dir', 'workspace_default_dir', mode='before')
