@@ -121,8 +121,30 @@ class TestCCRCommands:
         call_args = send_mock.call_args
         assert call_args[0][0] == "test_user"
         card = call_args[1]['card']
-        assert "模型列表" in card.title
-        assert "deepseek,deepseek-chat" in card.content
+        # 选项卡返回的是 dict（卡片 JSON）
+        assert isinstance(card, dict)
+        assert card["schema"] == "2.0"
+        title = card["header"]["title"]["content"]
+        assert "模型列表" in title
+        # 模型名应出现在按钮文本中（按 max_label_len 截断）
+        buttons_text = self._collect_button_texts(card)
+        # 长模型名会被截断，但前缀 "deepseek,deepseek" 仍可见
+        assert "deepseek" in buttons_text
+        assert "claude" in buttons_text
+        # 共 4 个按钮
+        assert buttons_text.count("\n") == 3  # 4 行，用 \n 分隔
+
+    @staticmethod
+    def _collect_button_texts(card):
+        """收集卡片中所有按钮的文本"""
+        texts = []
+        for element in card.get("body", {}).get("elements", []):
+            if element.get("tag") == "column_set":
+                for column in element.get("columns", []):
+                    for el in column.get("elements", []):
+                        if el.get("tag") == "button":
+                            texts.append(el["text"]["content"])
+        return "\n".join(texts)
 
     @pytest.mark.asyncio
     async def test_handle_model_switch_by_index(self, ccr, mock_config):

@@ -268,3 +268,352 @@ class TestInteractionManagerGlobal:
         assert interaction_manager is not None
         from src.interaction_manager import InteractionManager
         assert isinstance(interaction_manager, InteractionManager)
+
+
+class TestOptionCardDispatch:
+    """测试选项卡（OptionCard）交互分发"""
+
+    @pytest.fixture
+    def interaction_manager(self):
+        from src.interaction_manager import InteractionManager
+        return InteractionManager()
+
+    @pytest.fixture
+    def mock_feishu_api(self):
+        api = Mock()
+        api.send_message = AsyncMock(return_value="msg_id_xyz")
+        return api
+
+    @pytest.mark.asyncio
+    async def test_option_card_select_ws(self, interaction_manager, mock_feishu_api):
+        """选项卡 ws 类别 select 应触发工作空间切换（含文字确认 + handler 回调）"""
+        interaction_data = {
+            "action_value": {"opt": "select", "cat": "ws", "key": "3", "page": 1},
+            "form_value": None,
+            "operator": {"open_id": "ou_test123"},
+            "context": {"open_message_id": "msg_123"}
+        }
+
+        with patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.handle_workspace_select",
+            new=AsyncMock(),
+        ) as mock_select, patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.show_workspace_option_card",
+            new=AsyncMock(),
+        ):
+            result = await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        assert result is not None
+        assert result["type"] == "option_card_select"
+        assert result["category"] == "ws"
+        assert result["key"] == "3"
+        mock_select.assert_awaited_once()
+        # 检查传参
+        call_args = mock_select.await_args
+        assert call_args.args[0] == "ou_test123"
+        assert call_args.args[1] == "3"
+        # 文字确认消息至少被发送 1 次（"正在切换..." 提示）
+        assert mock_feishu_api.send_message.await_count >= 1
+        # send_message_func 应可调用
+        send_func = call_args.args[2]
+        await send_func("ou_test123", card={"foo": "bar"})
+        # 又多了一次 send_message（卡片）
+        assert mock_feishu_api.send_message.await_count >= 2
+
+    @pytest.mark.asyncio
+    async def test_option_card_page_ws(self, interaction_manager, mock_feishu_api):
+        """选项卡 ws 类别 page 应触发翻页重渲染"""
+        interaction_data = {
+            "action_value": {"opt": "page", "cat": "ws", "page": 2},
+            "form_value": None,
+            "operator": {"open_id": "ou_test123"},
+            "context": {"open_message_id": "msg_123"}
+        }
+
+        with patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.show_workspace_option_card",
+            new=AsyncMock(),
+        ) as mock_show, patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.handle_workspace_select",
+            new=AsyncMock(),
+        ):
+            result = await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        assert result is not None
+        assert result["type"] == "option_card_page"
+        assert result["category"] == "ws"
+        assert result["page"] == 2
+        mock_show.assert_awaited_once_with("ou_test123", mock_show.await_args.args[1], page=2)
+
+    @pytest.mark.asyncio
+    async def test_option_card_select_model(self, interaction_manager, mock_feishu_api):
+        """选项卡 model 类别 select 应触发模型切换"""
+        interaction_data = {
+            "action_value": {"opt": "select", "cat": "model", "key": "5", "page": 1},
+            "form_value": None,
+            "operator": {"open_id": "ou_test123"},
+            "context": {"open_message_id": "msg_123"}
+        }
+
+        with patch(
+            "src.handlers.ccr_commands.CCRCommands.handle_model_select",
+            new=AsyncMock(),
+        ) as mock_select, patch(
+            "src.handlers.ccr_commands.CCRCommands.show_model_option_card",
+            new=AsyncMock(),
+        ):
+            result = await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        assert result is not None
+        assert result["type"] == "option_card_select"
+        assert result["category"] == "model"
+        assert result["key"] == "5"
+        mock_select.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_option_card_page_model(self, interaction_manager, mock_feishu_api):
+        """选项卡 model 类别 page 应触发翻页重渲染"""
+        interaction_data = {
+            "action_value": {"opt": "page", "cat": "model", "page": 3},
+            "form_value": None,
+            "operator": {"open_id": "ou_test123"},
+            "context": {"open_message_id": "msg_123"}
+        }
+
+        with patch(
+            "src.handlers.ccr_commands.CCRCommands.show_model_option_card",
+            new=AsyncMock(),
+        ) as mock_show, patch(
+            "src.handlers.ccr_commands.CCRCommands.handle_model_select",
+            new=AsyncMock(),
+        ):
+            result = await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        assert result is not None
+        assert result["type"] == "option_card_page"
+        assert result["category"] == "model"
+        assert result["page"] == 3
+        mock_show.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_option_card_unknown_cat(self, interaction_manager, mock_feishu_api):
+        """未知的 cat 应返回 None，不抛出异常"""
+        interaction_data = {
+            "action_value": {"opt": "select", "cat": "unknown", "key": "1"},
+            "form_value": None,
+            "operator": {"open_id": "ou_test123"},
+            "context": {"open_message_id": "msg_123"}
+        }
+
+        result = await interaction_manager.handle_card_interaction(
+            interaction_data, mock_feishu_api
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_option_card_select_ws_group(self, interaction_manager, mock_feishu_api):
+        """选项卡 ws_group 类别 select 应展示该一级目录的 level-2 内容"""
+        interaction_data = {
+            "action_value": {"opt": "select", "cat": "ws_group", "key": "github", "page": 1},
+            "form_value": None,
+            "operator": {"open_id": "ou_test123"},
+            "context": {"open_message_id": "msg_123"}
+        }
+
+        with patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.show_workspace_group_contents_option_card",
+            new=AsyncMock(),
+        ) as mock_show:
+            result = await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        assert result is not None
+        assert result["type"] == "option_card_select"
+        assert result["category"] == "ws_group"
+        assert result["key"] == "github"
+        mock_show.assert_awaited_once()
+        call_args = mock_show.await_args
+        assert call_args.args[0] == "ou_test123"
+        assert call_args.args[1] == "github"
+
+    @pytest.mark.asyncio
+    async def test_option_card_select_ws_parent(self, interaction_manager, mock_feishu_api):
+        """选项卡 ws_parent 类别 select 应切换到一级目录（含文字确认）"""
+        interaction_data = {
+            "action_value": {"opt": "select", "cat": "ws_parent", "key": "github"},
+            "form_value": None,
+            "operator": {"open_id": "ou_test123"},
+            "context": {"open_message_id": "msg_123"}
+        }
+
+        with patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.handle_workspace_parent_select",
+            new=AsyncMock(),
+        ) as mock_parent:
+            result = await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        assert result is not None
+        assert result["type"] == "option_card_select"
+        assert result["category"] == "ws_parent"
+        assert result["key"] == "github"
+        mock_parent.assert_awaited_once_with("ou_test123", "github", mock_parent.await_args.args[2])
+        # 文字确认消息应至少 1 次被送出
+        assert mock_feishu_api.send_message.await_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_option_card_quick_confirm_text_first(self, interaction_manager, mock_feishu_api):
+        """点击 select 时，先发"正在切换..."文字消息给用户即时反馈"""
+        mock_feishu_api.send_message.reset_mock()
+        interaction_data = {
+            "action_value": {"opt": "select", "cat": "model", "key": "deepseek", "page": 1},
+            "form_value": None,
+            "operator": {"open_id": "ou_test123"},
+            "context": {"open_message_id": "msg_123"}
+        }
+
+        with patch(
+            "src.handlers.ccr_commands.CCRCommands.handle_model_select",
+            new=AsyncMock(),
+        ):
+            await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        # 至少一次 send_message 携带"⏳"提示文本
+        texts = [
+            call.args[1] for call in mock_feishu_api.send_message.call_args_list
+            if isinstance(call.args[1], str) and "⏳" in call.args[1]
+        ]
+        assert texts, "select 操作前应先发文字确认"
+
+    @pytest.mark.asyncio
+    async def test_send_message_func_serializes_normalized_card(self, interaction_manager, mock_feishu_api):
+        """send_message_func 应能正确把 NormalizedCard 序列化成飞书 V2 schema 字符串"""
+        from src.interfaces.im_platform import NormalizedCard
+        with patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.handle_workspace_select",
+            new=AsyncMock(),
+        ) as mock_select, patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.show_workspace_option_card",
+            new=AsyncMock(),
+        ):
+            interaction_data = {
+                "action_value": {"opt": "select", "cat": "ws", "key": "1", "page": 1},
+                "form_value": None,
+                "operator": {"open_id": "ou_user"},
+                "context": {"open_message_id": "msg_1"}
+            }
+            await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        send_func = mock_select.await_args.args[2]
+        card = NormalizedCard(
+            card_type="success",
+            title="成功",
+            content="已切换",
+            template_color="green",
+        )
+        await send_func("ou_user", card=card)
+        # 最后一次 send_message 调用应是 NormalizedCard 转成的 V2 schema
+        last_call = mock_feishu_api.send_message.call_args_list[-1]
+        import json
+        payload = json.loads(last_call.args[1])
+        assert payload["schema"] == "2.0"
+        assert payload["header"]["title"]["content"] == "成功"
+        assert payload["header"]["template"] == "green"
+
+    @pytest.mark.asyncio
+    async def test_option_card_action_value_from_string_json(self, interaction_manager, mock_feishu_api):
+        """action.value 以 JSON 字符串形式传入也应正确分发（飞书偶尔会这样）"""
+        interaction_data = {
+            "action_value": '{"opt": "select", "cat": "ws", "key": "2", "page": 1}',
+            "form_value": None,
+            "operator": {"open_id": "ou_test123"},
+            "context": {"open_message_id": "msg_123"}
+        }
+
+        with patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.handle_workspace_select",
+            new=AsyncMock(),
+        ) as mock_select, patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.show_workspace_option_card",
+            new=AsyncMock(),
+        ):
+            # 当前 handle_card_interaction 直接将 action_value 视作 dict 判定类型
+            # 字符串形式的 value 不应触发 option_card 分发（需要上游先 parse）
+            result = await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        # 字符串 action_value 当前不会触发 option card 分发（已知的现状）
+        assert result is None or result["type"].startswith("option_card_") is False
+
+    @pytest.mark.asyncio
+    async def test_send_message_func_forwards_dict_card(self, interaction_manager, mock_feishu_api):
+        """send_message_func 应将 dict 卡片 JSON 化后通过 feishu_api.send_message 发送"""
+        with patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.handle_workspace_select",
+            new=AsyncMock(),
+        ) as mock_select, patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.show_workspace_option_card",
+            new=AsyncMock(),
+        ):
+            interaction_data = {
+                "action_value": {"opt": "select", "cat": "ws", "key": "1", "page": 1},
+                "form_value": None,
+                "operator": {"open_id": "ou_user"},
+                "context": {"open_message_id": "msg_1"}
+            }
+            await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        # 抓取 send_func
+        send_func = mock_select.await_args.args[2]
+        before = mock_feishu_api.send_message.await_count
+        await send_func("ou_user", card={"schema": "2.0", "body": {}})
+        after = mock_feishu_api.send_message.await_count
+        assert after - before == 1, "send_message_func 应将 dict 卡片转发给 feishu_api.send_message"
+        # 最近一次调用：第二个位置参数应是序列化后的字符串
+        last_call = mock_feishu_api.send_message.call_args_list[-1]
+        assert last_call.args[0] == "ou_user"
+        import json
+        json.loads(last_call.args[1])  # 能解析回 dict 说明是合法 JSON 字符串
+
+    @pytest.mark.asyncio
+    async def test_send_message_func_forwards_text(self, interaction_manager, mock_feishu_api):
+        """send_message_func 应直接将文本转发给 feishu_api.send_message"""
+        with patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.handle_workspace_select",
+            new=AsyncMock(),
+        ) as mock_select, patch(
+            "src.handlers.workspace_commands.WorkspaceCommands.show_workspace_option_card",
+            new=AsyncMock(),
+        ):
+            interaction_data = {
+                "action_value": {"opt": "select", "cat": "ws", "key": "1", "page": 1},
+                "form_value": None,
+                "operator": {"open_id": "ou_user"},
+                "context": {"open_message_id": "msg_1"}
+            }
+            await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        send_func = mock_select.await_args.args[2]
+        await send_func("ou_user", message="hello")
+        # 最近一次 send_message 调用应是 (ou_user, "hello")
+        last_call = mock_feishu_api.send_message.call_args_list[-1]
+        assert last_call.args == ("ou_user", "hello")

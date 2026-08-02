@@ -55,7 +55,7 @@ class TestWorkspaceSwitch:
 
     @pytest.mark.asyncio
     async def test_workspace_list_card(self, test_workspaces, mock_send_func):
-        """测试工作空间列表卡片"""
+        """测试工作空间列表卡片（选项卡）"""
         workspace_commands = WorkspaceCommands()
         await workspace_commands.handle_workspace_command(
             user_id="test_user",
@@ -65,9 +65,20 @@ class TestWorkspaceSwitch:
 
         assert len(mock_send_func.sent_cards) == 1
         card = mock_send_func.sent_cards[0]["card"]
-        assert isinstance(card, NormalizedCard)
-        assert "workspace_alpha" in card.content
-        assert "workspace_beta" in card.content
+        # 新版使用 OptionCard，返回 dict 形式的卡片 JSON
+        assert isinstance(card, dict)
+        assert card["schema"] == "2.0"
+        # 验证按钮文本包含工作空间名
+        button_texts = []
+        for element in card.get("body", {}).get("elements", []):
+            if element.get("tag") == "column_set":
+                for column in element.get("columns", []):
+                    for el in column.get("elements", []):
+                        if el.get("tag") == "button":
+                            button_texts.append(el["text"]["content"])
+        joined = "\n".join(button_texts)
+        assert "workspace_alpha" in joined
+        assert "workspace_beta" in joined
 
     @pytest.mark.asyncio
     async def test_switch_to_alpha(self, test_workspaces, mock_send_func):

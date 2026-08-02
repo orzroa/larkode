@@ -262,18 +262,23 @@ AI: [显示最近20条历史消息]
 AI: [显示最近500行的截屏]
 
 用户: #ws
-AI: [显示所有工作空间列表，支持序号/名称切换]
-   例如：
-   1. /home/user/project-alpha
-   2. /home/user/project-beta
-   3. /home/user/awesome-repo
+AI: [level-1 选项卡：按一级目录分组（如 github/、osc/、home/），标记 🟢=运行 ✅=当前 默认]
+   点击一级目录进入 level-2。
+
+用户: #ws github
+AI: [level-2 选项卡：github 目录下所有工作空间 + 顶部"📁 整个 github/"按钮]
 
 用户: #ws 2
-AI: [切换到 project-beta 工作空间]
+AI: [扁平模式下切换到第 2 个工作空间]
 
-用户: #ws larkode
-AI: [切换到名称包含 "larkode" 的工作空间]
+用户: #ws github/larkode
+AI: [按完整名称切换工作空间]
+
+用户: #model
+AI: [扁平选项卡：每行 5 个按钮，点击切换模型；当前模型高亮为蓝色按钮]
 ```
+
+点击任何按钮后会立即收到一条 `⏳ 正在切换...` 的文本消息作为即时的视觉反馈。
 
 ---
 
@@ -341,6 +346,53 @@ uv run --no-project pytest tests/integration/ -v
 | `logs/app.log` | 应用日志 |
 | `logs/stdout.log` | 进程输出日志 |
 | `logs/hook_events.log` | Hook 事件日志 |
+
+### 4.5 选项卡（OptionCard）
+
+针对 100+ 选项列表场景（工作空间、CCR 模型），larkode 使用可点击按钮 + 翻页的飞书卡片：
+
+- 同一卡片内 5 个按钮一行（V2 schema 用 `column_set` + `column` 横向布局）
+- 每页 20 项（4 行 × 5 按钮），超过 20 项自动翻页
+- 翻页按钮：`← 上一页` / `当前页/总页` / `下一页 →`
+- 选项按钮点击后通过 `card.action.trigger` 回调触发切换
+- 当前项高亮为 `primary` 蓝色按钮
+
+#### 4.5.1 工作空间两级导航
+
+当工作空间存在 `depth >= 2`（名称含 `/`）时，自动启用两级导航：
+
+- **Level 1（无参数 `#ws`）**：按一级目录分组的选项卡（如 `github/`、`osc/`、`home/`），附 `🟢`/`✅`/默认 标记
+- **Level 2（点击一级目录或 `#ws <一级目录>`）**：组内工作空间列表 + 顶部 `📁 整个 <一级目录>/` 按钮（一键切到一级目录）
+
+扁平场景（所有 workspace `depth=1`）保持原有的扁平选项卡行为。
+
+#### 4.5.2 即时反馈
+
+点击任何 select 按钮后，larkode 会先发一条 `⏳ 正在切换...` 的文本消息作为即时反馈，再执行实际切换并发送最终的成功/失败卡片。这样即使切换逻辑较慢，用户也能立即看到"操作已被受理"的迹象。
+
+#### 4.5.3 回调的 `action.value` 结构
+
+| 字段 | 含义 | 示例 |
+|------|------|------|
+| `opt` | 动作类型 | `select`（选中）/ `page`（翻页）/ `noop`（占位） |
+| `cat` | 选项分类 | `ws`（工作空间）/ `ws_group`（一级目录）/ `ws_parent`（整个一级目录）/ `model`（模型） |
+| `key` | 选中项的 key（仅 select） | `"3"`（扁平序号）/`"github/larkode"`（完整名称）/`"github"`（一级目录名） |
+| `page` | 目标页码（仅 page） | `2` |
+
+分发链路：
+
+```
+飞书点击按钮
+    ↓ card.action.trigger 事件
+InteractionManager.handle_card_interaction
+    ↓ opt ∈ {select, page}
+InteractionManager._handle_option_card_action
+    ↓ 先发 ⏳ 文字反馈（确保用户立即看到），
+       再按 cat 分发
+WorkspaceCommands / CCRCommands
+    ↓ 调用 send_message_func 重渲染卡片
+飞书接收新消息
+```
 
 ---
 
@@ -638,18 +690,24 @@ User: #shot 500
 AI: [Shows last 500 lines screenshot]
 
 User: #ws
-AI: [Shows all workspace list, supports index/name switch]
-   Example:
-   1. /home/user/project-alpha
-   2. /home/user/project-beta
-   3. /home/user/awesome-repo
+AI: [Level-1 card: workspaces grouped by top-level dir (e.g. github/, osc/, home/);
+      markers 🟢=running, ✅=current, default=default]
+   Tap a group to enter Level-2.
+
+User: #ws github
+AI: [Level-2 card: all workspaces under github/ + a "📁 entire github/" button at top]
 
 User: #ws 2
-AI: [Switches to project-beta workspace]
+AI: [Switches to the 2nd workspace in the flat list]
 
-User: #ws larkode
-AI: [Switches to workspace containing "larkode"]
+User: #ws github/larkode
+AI: [Switches by full workspace name]
+
+User: #model
+AI: [Flat option card: 5 buttons per row; current model highlighted as primary blue]
 ```
+
+Clicking any select button immediately sends a `⏳ 正在切换...` text message as visual feedback.
 
 ---
 

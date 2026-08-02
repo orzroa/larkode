@@ -258,35 +258,57 @@ class CCRCommands:
         user_id: str,
         models: List[str],
         current: Optional[str],
-        send_message_func
+        send_message_func,
+        page: int = 1,
     ):
-        """显示模型列表"""
-        from src.interfaces.im_platform import NormalizedCard
+        """显示模型列表（选项卡）"""
+        from src.option_card import OptionCardData, OptionItem, build_option_card
 
-        # 构建 Markdown 列表
-        lines = []
-        for i, model in enumerate(models, 1):
-            if model == current:
-                lines.append(f"- **{i}** **`{model}`** ✅")
-            else:
-                lines.append(f"- **{i}** `{model}`")
+        items = [
+            OptionItem(
+                key=str(i),
+                label=model,
+                is_current=(model == current),
+            )
+            for i, model in enumerate(models, 1)
+        ]
+        card_data = build_option_card(OptionCardData(
+            title="🤖 模型列表",
+            category="model",
+            items=items,
+            page=page,
+            header_note=f"当前模型: `{current or '未设置'}` · 点击按钮切换",
+        ))
+        await send_message_func(user_id, card=card_data)
 
-        content = f"""
-**当前模型**: `{current or "未设置"}`
+    async def show_model_option_card(
+        self,
+        user_id: str,
+        send_message_func,
+        page: int = 1,
+    ):
+        """公开方法：按页码展示模型选项卡（用于卡片回调）"""
+        config = self.load_config()
+        if config is None:
+            return
+        models = self.extract_models_from_providers(config)
+        if not models:
+            return
+        current = self.get_current_model(config)
+        await self._show_model_list(user_id, models, current, send_message_func, page=page)
 
-{chr(10).join(lines)}
-
----
-
-💡 使用 `#model <序号>` 或 `#model <完整格式>` 切换模型
-"""
-        card = NormalizedCard(
-            card_type="model_list",
-            title="模型列表",
-            content=content,
-            template_color="blue"
-        )
-        await send_message_func(user_id, card=card)
+    async def handle_model_select(
+        self,
+        user_id: str,
+        key: str,
+        send_message_func,
+    ):
+        """处理选项卡回调：按 key 切换模型"""
+        if not key.isdigit():
+            await self._send_error(user_id, f"无效的模型序号: {key}", send_message_func)
+            return
+        # 复用现有 handle_model_command 的参数路径
+        await self.handle_model_command(user_id, key, send_message_func)
 
     async def _send_success(
         self,

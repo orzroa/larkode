@@ -137,14 +137,31 @@ class TestWorkspaceCommands:
                     send_message_func=send_message_func
                 )
 
-                # 应该发送工作空间列表
+                # 应该发送工作空间列表（选项卡：dict 而非 NormalizedCard）
                 assert send_message_func.called
                 call_kwargs = send_message_func.call_args.kwargs
                 card = call_kwargs.get('card')
                 assert card is not None
-                assert card.title == "工作空间"
-                assert "project1" in card.content
-                assert "project2" in card.content
+                assert isinstance(card, dict)
+                assert card["schema"] == "2.0"
+                title = card["header"]["title"]["content"]
+                assert "工作空间" in title
+                # 项目名应出现在按钮文本中
+                button_texts = self._collect_button_texts(card)
+                assert any("project1" in t for t in button_texts)
+                assert any("project2" in t for t in button_texts)
+
+    @staticmethod
+    def _collect_button_texts(card):
+        """收集卡片中所有按钮的文本（V2 schema: column_set + column + button），返回 list[str]"""
+        texts = []
+        for element in card.get("body", {}).get("elements", []):
+            if element.get("tag") == "column_set":
+                for column in element.get("columns", []):
+                    for el in column.get("elements", []):
+                        if el.get("tag") == "button":
+                            texts.append(el["text"]["content"])
+        return texts
 
     @pytest.mark.asyncio
     async def test_handle_workspace_command_switch_success(self):
@@ -291,7 +308,11 @@ class TestWorkspaceCommands:
 
     @pytest.mark.asyncio
     async def test_show_workspace_list_with_warning(self):
-        """测试默认工作空间不在列表中的警告"""
+        """测试默认工作空间不在列表中时仍能正常渲染选项卡
+
+        新版 OptionCard 不再在列表卡片里写警告文案——警告信息改为通过其他渠道传达。
+        此处只验证：列表能正常渲染、不抛异常。
+        """
         ws_cmd = WorkspaceCommands()
 
         # Mock settings
@@ -317,12 +338,22 @@ class TestWorkspaceCommands:
                     send_message_func=send_message_func
                 )
 
-                # 应该包含警告信息
+                # 选项卡能正常渲染
                 assert send_message_func.called
                 call_kwargs = send_message_func.call_args.kwargs
                 card = call_kwargs.get('card')
                 assert card is not None
-                assert "警告" in card.content
+                assert isinstance(card, dict)
+                assert card["schema"] == "2.0"
+                # 至少有一个按钮（V2 schema: column_set 包裹 column + button）
+                has_button = False
+                for e in card.get("body", {}).get("elements", []):
+                    if e.get("tag") == "column_set":
+                        for column in e.get("columns", []):
+                            for el in column.get("elements", []):
+                                if el.get("tag") == "button":
+                                    has_button = True
+                assert has_button
 
     @pytest.mark.asyncio
     async def test_send_success(self):
@@ -400,47 +431,57 @@ class TestWorkspaceCommands:
                 assert "成功" in card.title
 
     @pytest.mark.asyncio
-    async def test_handle_workspace_command_by_name_multiple_matches(self):
-        """测试按名称搜索工作空间 - 多个匹配，显示总列表序号"""
+    async def test_handle_workspace_command_group_name_opens_level2(self):
+        """测试一级目录名作为 args，应展示 level-2 内容列表而非触发多匹配错误"""
         ws_cmd = WorkspaceCommands()
 
-        # Mock settings
         mock_settings = MagicMock()
         mock_settings.workspace_discovery_enabled = True
         mock_settings.workspace_root_dir = Path("/tmp")
 
-        # Mock workspace_manager - 5个工作空间，其中国github开头的有3个
+        # 5 个工作空间，其中 github 下有 3 个
         mock_manager = MagicMock()
         mock_manager.get_workspaces.return_value = [
             {'name': 'osc/project1', 'path': '/tmp/osc/project1', 'depth': 2, 'is_running': False, 'is_default': False, 'is_current': False},
+            {'name': 'github', 'path': '/tmp/github', 'depth': 1, 'is_running': True, 'is_default': False, 'is_current': True},
             {'name': 'github/aiTermLark', 'path': '/tmp/github/aiTermLark', 'depth': 2, 'is_running': False, 'is_default': False, 'is_current': False},
             {'name': 'github/druid', 'path': '/tmp/github/druid', 'depth': 2, 'is_running': False, 'is_default': False, 'is_current': False},
             {'name': 'github/larkode', 'path': '/tmp/github/larkode', 'depth': 2, 'is_running': False, 'is_default': True, 'is_current': False},
-            {'name': 'other/project', 'path': '/tmp/other/project', 'depth': 2, 'is_running': False, 'is_default': False, 'is_current': False}
         ]
 
-        # Mock send_message_func
         send_message_func = AsyncMock()
 
         with patch('src.handlers.workspace_commands.get_settings', return_value=mock_settings):
             with patch('src.handlers.workspace_commands.get_workspace_manager', return_value=mock_manager):
                 await ws_cmd.handle_workspace_command(
                     user_id="test_user",
-                    args="github",  # 搜索github，会匹配到3个
-                    send_message_func=send_message_func
+                    args="github",  # 精确匹配一级目录名
+                    send_message_func=send_message_func,
                 )
 
-                # 应该发送错误消息（提示多个匹配）
                 assert send_message_func.called
                 call_kwargs = send_message_func.call_args.kwargs
                 card = call_kwargs.get('card')
                 assert card is not None
-                assert card.title == "错误"
-                # 应该显示总列表中的序号（2, 3, 4）
-                assert "2. github/aiTermLark" in card.content
-                assert "3. github/druid" in card.content
-                assert "4. github/larkode" in card.content
-                assert "#ws <序号>" in card.content
+                assert isinstance(card, dict)
+                assert card["schema"] == "2.0"
+                # 顶部"整个一级目录"按钮 + 三个子工作空间按钮（不带 group 前缀）
+                button_texts = self._collect_button_texts(card)
+                assert any("📁 整个 github/" in t for t in button_texts)
+                # 不应再显示 group 前缀
+                assert not any("github/aiTermLark" in t for t in button_texts), "子工作空间按钮不应包含 group 前缀"
+                assert not any("github/druid" in t for t in button_texts)
+                assert not any("github/larkode" in t for t in button_texts)
+                # 只显示子工作空间名
+                assert any("aiTermLark" in t for t in button_texts)
+                assert any("druid" in t for t in button_texts)
+                assert any("larkode" in t for t in button_texts)
+                # 不应有重复的 "1. 1." 编号
+                assert not any("1. 1." in t for t in button_texts)
+                # 不应有翻页行（page_size=999，总是一页）
+                column_sets = [e for e in card["body"]["elements"] if e.get("tag") == "column_set"]
+                # 1 个 parent button row + 1 个 workspace button row = 2 行
+                assert len(column_sets) == 2
 
     @pytest.mark.asyncio
     async def test_handle_workspace_command_by_name_no_match(self):
@@ -476,7 +517,45 @@ class TestWorkspaceCommands:
                 assert card is not None
                 assert card.title == "错误"
                 assert "未找到匹配的工作空间" in card.content
-                assert "#ws <序号> 或 #ws <名称>" in card.content
+                assert "nonexistent" in card.content
+
+    @pytest.mark.asyncio
+    async def test_handle_workspace_command_substring_multiple_matches(self):
+        """子串匹配命中多个时（且非 group 精确匹配），展示多匹配列表"""
+        ws_cmd = WorkspaceCommands()
+
+        mock_settings = MagicMock()
+        mock_settings.workspace_discovery_enabled = True
+        mock_settings.workspace_root_dir = Path("/tmp")
+
+        # 注意：没有 group 名能精确匹配 "demo"（一级目录是 alpha/beta/gamma）
+        mock_manager = MagicMock()
+        mock_manager.get_workspaces.return_value = [
+            {'name': 'alpha/demo1', 'path': '/tmp/alpha/demo1', 'depth': 2, 'is_running': False, 'is_default': False, 'is_current': False},
+            {'name': 'beta/demo2', 'path': '/tmp/beta/demo2', 'depth': 2, 'is_running': False, 'is_default': False, 'is_current': False},
+            {'name': 'gamma/demo3', 'path': '/tmp/gamma/demo3', 'depth': 2, 'is_running': False, 'is_default': False, 'is_current': False},
+        ]
+
+        send_message_func = AsyncMock()
+
+        with patch('src.handlers.workspace_commands.get_settings', return_value=mock_settings):
+            with patch('src.handlers.workspace_commands.get_workspace_manager', return_value=mock_manager):
+                await ws_cmd.handle_workspace_command(
+                    user_id="test_user",
+                    args="demo",  # 子串命中 3 个，且都不在 groups 精确匹配中
+                    send_message_func=send_message_func,
+                )
+
+                assert send_message_func.called
+                call_kwargs = send_message_func.call_args.kwargs
+                card = call_kwargs.get('card')
+                assert card is not None
+                assert card.title == "错误"
+                assert "找到多个匹配的工作空间" in card.content
+                # 三个匹配都应出现
+                assert "alpha/demo1" in card.content
+                assert "beta/demo2" in card.content
+                assert "gamma/demo3" in card.content
 
     @pytest.mark.asyncio
     async def test_handle_workspace_command_by_name_case_insensitive(self):

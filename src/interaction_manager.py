@@ -80,6 +80,13 @@ class InteractionManager:
                     value = action_value.get("value")
                     return await self._handle_confirm(user_open_id, message_id, value, feishu_api)
 
+                # 选项卡（OptionCard）：opt 字段标识具体动作
+                opt = action_value.get("opt")
+                if opt in ("select", "page"):
+                    return await self._handle_option_card_action(
+                        user_open_id, action_value, feishu_api
+                    )
+
             # 表单提交（单选或多选）
             if form_value:
                 return await self._handle_form_submit(
@@ -271,6 +278,130 @@ class InteractionManager:
             if task_id in self._result_events:
                 self._result_events[task_id].set()
                 self._result_events.pop(task_id, None)
+
+    async def _handle_option_card_action(
+        self,
+        user_id: str,
+        action_value: Dict[str, Any],
+        feishu_api,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        处理选项卡（OptionCard）交互：opt=select 或 opt=page
+
+        Args:
+            user_id: 用户 ID
+            action_value: 解析后的 action.value，结构: {opt, cat, key?, page?}
+            feishu_api: 飞书 API 实例
+        """
+        from src.handlers.workspace_commands import WorkspaceCommands
+        from src.handlers.ccr_commands import CCRCommands
+
+        opt = action_value.get("opt")
+        cat = action_value.get("cat")
+
+        async def send_message_func(uid, card=None, message=None):
+            if card is not None:
+                payload = _serialize_card(card)
+                return await feishu_api.send_message(uid, payload)
+            if message is not None:
+                return await feishu_api.send_message(uid, message)
+            return False
+
+        def _serialize_card(card):
+            """把 NormalizedCard / dict / str 统一转成飞书卡片 JSON 字符串"""
+            if isinstance(card, str):
+                return card
+            # NormalizedCard：转成飞书 V2 schema 后再 JSON 序列化
+            try:
+                from src.interfaces.im_platform import NormalizedCard
+                is_nc = isinstance(card, NormalizedCard)
+            except ImportError:
+                is_nc = False
+            if is_nc:
+                feishu_card = {
+                    "schema": "2.0",
+                    "config": {"wide_screen_mode": True},
+                    "header": {
+                        "title": {"tag": "plain_text", "content": card.title},
+                        "template": card.template_color,
+                    },
+                    "body": {
+                        "elements": [
+                            {"tag": "markdown", "content": card.content},
+                        ],
+                    },
+                }
+                return json.dumps(feishu_card, ensure_ascii=False)
+            return json.dumps(card, ensure_ascii=False, default=_default_json)
+
+        def _default_json(obj):
+            """JSON 序列化兜底：对象若有 to_dict() 就用其输出"""
+            to_dict = getattr(obj, "to_dict", None)
+            if callable(to_dict):
+                return to_dict()
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+        if cat == "ws":
+            handler = WorkspaceCommands()
+            if opt == "page":
+                page = action_value.get("page", 1)
+                await handler.show_workspace_option_card(user_id, send_message_func, page=page)
+                return {"type": "option_card_page", "category": "ws", "page": page}
+            if opt == "select":
+                key = action_value.get("key", "")
+                # 先发文字确认（让用户立即看到反馈）
+                await self._quick_confirm(
+                    user_id, f"⏳ 正在切换到工作空间 `{key}`...",
+                    feishu_api,
+                )
+                await handler.handle_workspace_select(user_id, key, send_message_func)
+                return {"type": "option_card_select", "category": "ws", "key": key}
+
+        if cat == "ws_group":
+            handler = WorkspaceCommands()
+            group_name = action_value.get("key", "")
+            page = action_value.get("page", 1)
+            await handler.show_workspace_group_contents_option_card(
+                user_id, group_name, send_message_func, page=page,
+            )
+            return {"type": "option_card_select", "category": "ws_group", "key": group_name}
+
+        if cat == "ws_parent":
+            handler = WorkspaceCommands()
+            group_name = action_value.get("key", "")
+            # 先发文字确认
+            await self._quick_confirm(
+                user_id, f"⏳ 正在切换到 `{group_name}/` 目录...",
+                feishu_api,
+            )
+            await handler.handle_workspace_parent_select(user_id, group_name, send_message_func)
+            return {"type": "option_card_select", "category": "ws_parent", "key": group_name}
+
+        elif cat == "model":
+            handler = CCRCommands()
+            if opt == "page":
+                page = action_value.get("page", 1)
+                await handler.show_model_option_card(user_id, send_message_func, page=page)
+                return {"type": "option_card_page", "category": "model", "page": page}
+            if opt == "select":
+                key = action_value.get("key", "")
+                # 先发文字确认
+                await self._quick_confirm(
+                    user_id, f"⏳ 正在切换模型 `{key}`...",
+                    feishu_api,
+                )
+                await handler.handle_model_select(user_id, key, send_message_func)
+                return {"type": "option_card_select", "category": "model", "key": key}
+
+        logger.warning(f"未知的选项卡交互: opt={opt}, cat={cat}, action_value={action_value}")
+        return None
+
+    async def _quick_confirm(self, user_id: str, text: str, feishu_api):
+        """立即发一条文字消息，给用户即时反馈（卡片操作完成前先行送达）"""
+        try:
+            await feishu_api.send_message(user_id, text)
+        except Exception as e:
+            logger.warning(f"快速反馈发送失败（不影响主流程）: {e}")
 
     async def _write_interaction_response(self, message_id: str, result: Dict[str, Any]):
         """
