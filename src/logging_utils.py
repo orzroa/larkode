@@ -208,7 +208,8 @@ def setup_logging(
         use_structured: 是否使用结构化日志
     """
     # 确保日志目录存在
-    log_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    log_dir.chmod(0o700)
 
     # 配置根日志记录器
     root_logger = logging.getLogger()
@@ -237,12 +238,14 @@ def setup_logging(
 
     # 文件处理器（统一日志到 app.log）
     file_handler = logging.FileHandler(log_dir / "app.log", encoding="utf-8")
+    (log_dir / "app.log").chmod(0o600)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
     root_logger.addHandler(file_handler)
 
     # 错误日志单独文件
     error_handler = logging.FileHandler(log_dir / "error.log", encoding="utf-8")
+    (log_dir / "error.log").chmod(0o600)
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(formatter)
     root_logger.addHandler(error_handler)

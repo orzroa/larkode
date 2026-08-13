@@ -13,6 +13,7 @@ class AssistantType(str, Enum):
     """AI 助手类型"""
     DEFAULT = "default"
     CLAUDE_CODE = "claude_code"
+    CODEX = "codex"
     OPEN_CODE = "open_code"
     CODE_BODY = "code_body"
 

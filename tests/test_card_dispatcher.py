@@ -2,8 +2,9 @@
 测试统一卡片发送器 (CardDispatcher)
 """
 import asyncio
+import json
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from pathlib import Path
 
 import pytest
@@ -88,15 +89,52 @@ class TestCardDispatcher:
         """测试构建展示内容"""
         pure_content = "测试内容"
         card_id = 123
-        timestamp = "2026-03-12T10:30:00"
+        timestamp = "2026-03-12T10:30:00.123456"
         display = card_dispatcher._build_display_content(pure_content, card_id, timestamp)
-        assert "📨 **卡片编号**: 123" in display
-        assert pure_content in display
-        assert "2026-03-12" in display
+        assert display == (
+            "📨 卡片编号: 123\n"
+            "🕒 2026-03-12T10:30:00.123456\n"
+            "测试内容"
+        )
 
 
 class TestCardDispatcherSendCard:
     """测试 CardDispatcher.send_card 方法"""
+
+    @pytest.mark.asyncio
+    async def test_send_interactive_card_uses_standard_metadata(self, mock_feishu_api):
+        """交互卡片也必须由分发器添加工作区、编号和完整时间。"""
+        dispatcher = CardDispatcher(feishu_api=mock_feishu_api)
+        dispatcher._card_id_manager = Mock(get_next_id=Mock(return_value=14974))
+        mock_feishu_api.send_message = AsyncMock(return_value="om_123")
+        card = {
+            "schema": "2.0",
+            "header": {
+                "title": {"tag": "plain_text", "content": "🤖 Codex 模型"},
+                "template": "blue",
+            },
+            "body": {
+                "elements": [{
+                    "tag": "button",
+                    "text": {"tag": "plain_text", "content": "GPT Test"},
+                    "value": {"opt": "select", "cat": "codex_model", "key": "gpt-test"},
+                }],
+            },
+        }
+
+        with patch("src.card_dispatcher.get_workspace_name", return_value="larkode"), \
+             patch("src.card_dispatcher.db") as mock_db:
+            message_id = await dispatcher.send_interactive_card("ou_1", card)
+
+        assert message_id == "om_123"
+        payload = json.loads(mock_feishu_api.send_message.await_args.args[1])
+        assert payload["header"]["title"]["content"] == "[larkode] 🤖 Codex 模型"
+        metadata = payload["body"]["elements"][0]["content"]
+        assert metadata.startswith("📨 卡片编号: 14974\n🕒 ")
+        assert "T" in metadata.splitlines()[1]
+        button = payload["body"]["elements"][1]
+        assert button["value"] == card["body"]["elements"][0]["value"]
+        assert mock_db.save_message.call_args.args[0].card_id == 14974
 
     @pytest.mark.asyncio
     async def test_send_short_card(self, mock_feishu_api, mock_notification_sender):

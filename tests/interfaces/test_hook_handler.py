@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""
-Hook Handler 测试 - 分别测试 Claude Code 和 iFlow CLI 的 Hook 处理器
-"""
+"""Claude Code Hook Handler 测试。"""
 import pytest
 import os
 import sys
 import json
-import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -17,7 +14,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from src.interfaces.hook_handler import (
     IHookHandler,
     ClaudeHookHandler,
-    IFlowHookHandler,
     HookEventType,
     HookContext,
     detect_handler,
@@ -121,148 +117,6 @@ class TestClaudeHookHandler:
         assert self.handler.should_handle(context)
 
 
-class TestIFlowHookHandler:
-    """测试 iFlow CLI Hook 处理器"""
-
-    def setup_method(self):
-        """设置测试环境"""
-        self.handler = IFlowHookHandler()
-
-    def test_name(self):
-        """测试处理器名称"""
-        assert self.handler.name == "iflow"
-
-    def test_get_session_id_from_env(self):
-        """测试从环境变量获取 session ID"""
-        with patch.dict(os.environ, {"IFLOW_SESSION_ID": "iflow-session-456"}):
-            session_id = self.handler.get_session_id()
-            assert session_id == "iflow-session-456"
-
-    def test_get_session_id_empty(self):
-        """测试环境变量为空时返回 None"""
-        with patch.dict(os.environ, {}, clear=True):
-            session_id = self.handler.get_session_id()
-            assert session_id is None
-
-    def test_get_cwd_from_env(self):
-        """测试从环境变量获取工作目录"""
-        with patch.dict(os.environ, {"IFLOW_CWD": "/workspace/iflow-project"}):
-            cwd = self.handler.get_cwd()
-            assert cwd == "/workspace/iflow-project"
-
-    def test_get_cwd_empty(self):
-        """测试工作目录环境变量为空时返回 None"""
-        with patch.dict(os.environ, {}, clear=True):
-            cwd = self.handler.get_cwd()
-            assert cwd is None
-
-    def test_parse_stdin_user_prompt(self):
-        """测试解析 iFlow UserPromptSubmit 事件"""
-        stdin_data = json.dumps({
-            "hook_event_name": "UserPromptSubmit",
-            "session_id": "iflow-session-789",
-            "cwd": "/workspace/project",
-            "prompt": "iFlow 测试请求"
-        })
-
-        context = self.handler.parse_stdin(stdin_data)
-
-        assert context.event_type == HookEventType.USER_PROMPT_SUBMIT
-        assert context.session_id == "iflow-session-789"
-        assert context.cwd == "/workspace/project"
-        assert context.user_prompt == "iFlow 测试请求"
-
-    def test_parse_stdin_stop(self):
-        """测试解析 iFlow Stop 事件"""
-        stdin_data = json.dumps({
-            "hook_event": "Stop",
-            "session_id": "iflow-session-stop",
-            "last_assistant_message": "iFlow 助手回复"
-        })
-
-        context = self.handler.parse_stdin(stdin_data)
-
-        assert context.event_type == HookEventType.STOP
-        assert context.session_id == "iflow-session-stop"
-        assert context.last_assistant_message == "iFlow 助手回复"
-
-    def test_parse_stdin_notification(self):
-        """测试解析 iFlow Notification 事件"""
-        stdin_data = json.dumps({
-            "hook_event_name": "Notification",
-            "session_id": "iflow-session-notify",
-            "notification_message": "需要读取文件权限",
-            "toolName": "Read"
-        })
-
-        context = self.handler.parse_stdin(stdin_data)
-
-        assert context.event_type == HookEventType.NOTIFICATION
-        assert context.session_id == "iflow-session-notify"
-        assert context.notification_message == "需要读取文件权限"
-        assert context.tool_name == "Read"
-
-    def test_parse_stdin_empty(self):
-        """测试解析空 stdin"""
-        context = self.handler.parse_stdin("")
-
-        # 默认使用 USER_PROMPT_SUBMIT
-        assert context.event_type == HookEventType.USER_PROMPT_SUBMIT
-        assert context.session_id is None
-
-    def test_parse_stdin_with_transcript_path(self):
-        """测试带 transcript_path 的解析（无 last_assistant_message 时）"""
-        # 创建一个临时的 transcript 文件
-        transcript_content = [
-            json.dumps({"type": "user", "message": {"content": [{"type": "text", "text": "你好"}]}}),
-            json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "你好，我是 AI"}]}}),
-        ]
-
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-            f.write('\n'.join(transcript_content))
-            transcript_path = f.name
-
-        try:
-            stdin_data = json.dumps({
-                "hook_event_name": "Stop",
-                "session_id": "iflow-session-transcript",
-                "transcript_path": transcript_path,
-            })
-
-            context = self.handler.parse_stdin(stdin_data)
-
-            assert context.event_type == HookEventType.STOP
-            # 应该从 transcript 文件中读取到 last_assistant_message
-            assert context.last_assistant_message == "你好，我是 AI"
-        finally:
-            Path(transcript_path).unlink(missing_ok=True)
-
-    def test_parse_stdin_with_invalid_transcript(self):
-        """测试带无效 transcript 文件的解析"""
-        stdin_data = json.dumps({
-            "hook_event_name": "Stop",
-            "session_id": "iflow-session-invalid",
-            "transcript_path": "/nonexistent/path.jsonl",
-        })
-
-        context = self.handler.parse_stdin(stdin_data)
-
-        assert context.event_type == HookEventType.STOP
-        # transcript 文件不存在时，last_assistant_message 应为 None
-        assert context.last_assistant_message is None
-
-    def test_should_handle_always_true(self):
-        """测试 iFlow 处理所有事件"""
-        context = HookContext(event_type=HookEventType.USER_PROMPT_SUBMIT)
-        assert self.handler.should_handle(context)
-
-        context = HookContext(event_type=HookEventType.STOP)
-        assert self.handler.should_handle(context)
-
-        context = HookContext(event_type=HookEventType.NOTIFICATION)
-        assert self.handler.should_handle(context)
-
-
 class TestHookContext:
     """测试 HookContext 数据类"""
 
@@ -286,11 +140,11 @@ class TestHookContext:
         assert context.tool_name == "Write"
         assert context.tool_input == {"file_path": "test.txt"}
 
-    def test_from_dict_iflow_format(self):
-        """测试从 iFlow 格式字典创建上下文"""
+    def test_from_dict_alternate_field_names(self):
+        """测试兼容的事件和工具字段名"""
         data = {
             "hook_event": "Notification",
-            "session_id": "iflow-session",
+            "session_id": "alternate-session",
             "notification_message": "交互请求",
             "tool_name": "Bash",
         }
@@ -298,7 +152,7 @@ class TestHookContext:
         context = HookContext.from_dict(data)
 
         assert context.event_type == HookEventType.NOTIFICATION
-        assert context.session_id == "iflow-session"
+        assert context.session_id == "alternate-session"
         assert context.notification_message == "交互请求"
         assert context.tool_name == "Bash"
 
@@ -354,39 +208,8 @@ class TestDetectHandler:
             assert isinstance(handler, ClaudeHookHandler)  # 向后兼容别名
             assert handler.name == "default"
 
-    def test_detect_iflow_by_iflow_cli(self):
-        """测试通过 IFLOW_CLI_PATH 检测 iFlow 处理器"""
-        with patch.dict(os.environ, {"IFLOW_CLI_PATH": "iflow"}):
-            handler = detect_handler()
-            assert isinstance(handler, IFlowHookHandler)
-            assert handler.name == "iflow"
-
-    def test_detect_iflow_by_session_id(self):
-        """测试通过 IFLOW_SESSION_ID 检测 iFlow 处理器"""
-        with patch.dict(os.environ, {"IFLOW_SESSION_ID": "session-123"}):
-            handler = detect_handler()
-            assert isinstance(handler, IFlowHookHandler)
-            assert handler.name == "iflow"
-
-    def test_detect_iflow_by_hook_event_name(self):
-        """测试通过 IFLOW_HOOK_EVENT_NAME 检测 iFlow 处理器"""
-        with patch.dict(os.environ, {"IFLOW_HOOK_EVENT_NAME": "UserPromptSubmit"}):
-            handler = detect_handler()
-            assert isinstance(handler, IFlowHookHandler)
-            assert handler.name == "iflow"
-
     def test_claude_env_takes_precedence(self):
         """测试 Claude 环境变量时默认使用 Claude"""
         with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "claude-session"}, clear=True):
             handler = detect_handler()
             assert isinstance(handler, ClaudeHookHandler)
-
-    def test_iflow_priority_over_claude(self):
-        """测试 iFlow 环境变量优先于 Claude"""
-        # 当同时存在两种环境变量时，iFlow 应该优先
-        with patch.dict(os.environ, {
-            "CLAUDE_SESSION_ID": "claude-session",
-            "IFLOW_SESSION_ID": "iflow-session"
-        }):
-            handler = detect_handler()
-            assert isinstance(handler, IFlowHookHandler)

@@ -39,11 +39,8 @@ class TmuxSessionManager:
             workspace: 工作空间路径（可选）
             session_name: session 名称（可选，不提供则根据 workspace 自动生成）
         """
-        # 根据 AI_ASSISTANT_TYPE 配置选择 CLI
-        if get_settings().AI_ASSISTANT_TYPE == "iflow":
-            self._cli_path = get_settings().IFLOW_CLI_PATH
-        else:
-            self._cli_path = get_settings().CLAUDE_CODE_CLI_PATH
+        # tmux transport 仅属于 Claude Code 适配器。
+        self._cli_path = get_settings().CLAUDE_CODE_CLI_PATH
 
         # workspace 参数必须由调用方提供，或从 WorkspaceManager 动态获取
         if not workspace:
@@ -126,7 +123,8 @@ class TmuxSessionManager:
 
     def _log_claude_processes(self):
         """输出 Claude 进程信息"""
-        process_name = get_settings().get_process_name()
+        # TmuxSessionManager 是 Claude transport；不能被全局 Codex backend 污染。
+        process_name = cli_keyword or "claude"
         cli_keyword = os.path.basename(self._cli_path).split()[0] if self._cli_path else "claude"
 
         logger.info(f"  - 进程检测关键字: {cli_keyword} / {process_name}")

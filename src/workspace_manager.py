@@ -147,6 +147,11 @@ class WorkspaceManager:
         # 更新当前工作空间
         self._current_workspace = workspace_path
 
+        # Codex App Server 以每个 turn 的 cwd 路由，不需要也不应创建 Claude tmux。
+        if settings.get_agent_backend() == "codex":
+            logger.info(f"Codex 工作空间已切换: {workspace_path}")
+            return True, f"已切换到工作空间: {workspace_path}"
+
         # 使用 TmuxSessionManager 管理 session
         session_name = self._get_session_name(workspace_path)
         session_manager = TmuxSessionManager(

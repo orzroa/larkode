@@ -1,6 +1,19 @@
 #!/bin/bash
 
+# 配置、日志、数据库和上传内容仅允许服务用户访问。
+umask 077
+
 # Claude Feishu Integration 启动脚本
+
+# larkode 会再启动 Codex App Server。若从 Codex 自己的受管终端启动，内部
+# sandbox 会嵌套在外层 bwrap/network namespace 中，常见结果是：
+# bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
+if [ -n "${CODEX_PERMISSION_PROFILE:-}" ] || [ -n "${CODEX_THREAD_ID:-}" ]; then
+    echo "错误: 检测到当前终端位于 Codex 受管沙箱中。"
+    echo "请在普通系统终端中重新运行: cd $(pwd) && ./start.sh"
+    echo "不要从 Codex/VS Code Agent 的命令执行窗口启动 larkode。"
+    exit 1
+fi
 
 # 设置环境变量
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
@@ -29,14 +42,14 @@ if [ -f "$PID_FILE" ]; then
         rm -f "$PID_FILE"
     fi
 
-    # 额外检查：是否有其他 larkode.py 进程在运行
-    RUNNING_PIDS=$(pgrep -f "larkode.py" 2>/dev/null)
-    if [ -n "$RUNNING_PIDS" ]; then
-        echo "警告: 发现运行中的 larkode.py 进程: $RUNNING_PIDs"
-        echo "正在停止..."
-        pkill -f "larkode.py"
-        sleep 1
-    fi
+fi
+
+# Supervisor 不写本脚本的 PID 文件；仍需阻止误启动第二个实例。
+RUNNING_PIDS=$(pgrep -f '[l]arkode.py' 2>/dev/null || true)
+if [ -n "$RUNNING_PIDS" ]; then
+    echo "错误: 已有 larkode.py 进程运行: $RUNNING_PIDS"
+    echo "如果由 Supervisor 管理，请使用 supervisorctl restart larkode。"
+    exit 1
 fi
 
 # 确保虚拟环境存在（避免 PEP 668 externally-managed-environment 错误）
@@ -47,7 +60,7 @@ fi
 
 # 在虚拟环境中安装依赖
 echo "检查依赖..."
-uv pip install -r requirements.txt || {
+uv pip install -r requirements.lock || {
     echo "错误: 依赖安装失败"
     exit 1
 }

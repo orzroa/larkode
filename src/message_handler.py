@@ -196,6 +196,9 @@ class MessageHandler:
         """
         self._notification_sender = sender
         self._message_sender.set_notification_sender(sender)
+        card_dispatcher = getattr(self, "_card_dispatcher", None)
+        if card_dispatcher:
+            card_dispatcher.set_notification_sender(sender)
         # 更新子处理器的发送回调
         self._platform_commands.set_send_callback(self._message_sender.send)
         self._attachment_handler.set_send_callback(self._message_sender.send)

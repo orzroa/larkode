@@ -273,17 +273,20 @@ class TestGetSavePath:
 
     def test_get_save_path_default_dir(self):
         """测试默认保存目录"""
+        import hashlib
         from src.feishu.file_ops import _get_save_path
 
         file_key = "test_file_key_123"
         result = _get_save_path(file_key)
 
-        # 验证路径包含 file_key 和时间戳
-        assert file_key in str(result)
+        # 远端 file_key 只以摘要形式进入本地路径。
+        assert hashlib.sha256(file_key.encode()).hexdigest()[:16] in result.name
+        assert file_key not in result.name
         assert "uploads" in str(result)
 
     def test_get_save_path_custom_dir(self):
         """测试自定义保存目录"""
+        import hashlib
         from src.feishu.file_ops import _get_save_path
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -293,7 +296,7 @@ class TestGetSavePath:
             result = _get_save_path(file_key, custom_dir)
 
             assert custom_dir in result.parents
-            assert file_key in str(result)
+            assert hashlib.sha256(file_key.encode()).hexdigest()[:16] in result.name
 
     def test_get_save_path_creates_dir(self):
         """测试自动创建目录"""
@@ -345,6 +348,32 @@ class TestDownloadFile:
 
                 assert result is not None
                 assert result.exists()
+                assert result.stat().st_mode & 0o777 == 0o600
+
+    @pytest.mark.asyncio
+    async def test_download_file_rejects_oversized_content_and_cleans_partial_file(self):
+        from src.feishu.file_ops import download_file
+
+        with tempfile.TemporaryDirectory() as tmpdir, patch(
+            'src.feishu.file_ops._create_client'
+        ) as mock_create_client, patch(
+            'src.feishu.file_ops.get_settings'
+        ) as settings:
+            response = Mock()
+            response.success.return_value = True
+            response.file_name = "../unsafe.txt"
+            response.file = BytesIO(b"123456")
+            client = Mock()
+            client.im.v1.message_resource.get.return_value = response
+            mock_create_client.return_value = client
+            settings.return_value.attachment_max_bytes = 5
+
+            result = await download_file(
+                "test_secret", "msg_oversized", "file_key", Path(tmpdir)
+            )
+
+            assert result is None
+            assert list(Path(tmpdir).iterdir()) == []
 
     @pytest.mark.asyncio
     async def test_download_file_failure(self):

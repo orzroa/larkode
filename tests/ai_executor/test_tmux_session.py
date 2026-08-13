@@ -19,11 +19,8 @@ class TestTmuxSessionManagerInit:
     def mock_settings(self):
         """创建模拟的 settings"""
         settings = Mock()
-        settings.AI_ASSISTANT_TYPE = "claude_code"
         settings.CLAUDE_CODE_CLI_PATH = "claude"
         settings.TMUX_SESSION_NAME = "cc"
-        settings.IFLOW_CLI_PATH = "iflow"
-        settings.IFLOW_WORKSPACE_DIR = Path("/test/iflow")
         settings.workspace_default_dir = Path("/test/workspace")
         settings.get_process_name = Mock(return_value="claude")
         return settings
@@ -41,20 +38,6 @@ class TestTmuxSessionManagerInit:
                     assert manager._cli_path == "claude"
                     assert manager.workspace == Path("/test/workspace")
                     assert manager._tmux_session == "cc-test-workspace"
-
-    def test_init_iflow_mode(self, mock_settings):
-        """测试 iFlow 模式初始化"""
-        mock_settings.AI_ASSISTANT_TYPE = "iflow"
-
-        from src.ai_executor.tmux_session import TmuxSessionManager
-        with patch('src.ai_executor.tmux_session.get_settings', return_value=mock_settings):
-            with patch('src.workspace_manager.get_workspace_manager') as mock_wm:
-                mock_wm.return_value.get_current_workspace.return_value = "/test/iflow"
-                with patch.object(TmuxSessionManager, '_log_debug_info', return_value=None):
-                    manager = TmuxSessionManager()
-
-                    assert manager._cli_path == "iflow"
-                    assert manager.workspace == Path("/test/iflow")
 
     def test_init_with_custom_workspace(self, mock_settings):
         """测试自定义工作目录"""
@@ -115,7 +98,6 @@ class TestCheckTmuxSession:
     def manager(self):
         """创建 TmuxSessionManager 实例"""
         with patch('src.ai_executor.tmux_session.get_settings') as mock_settings:
-            mock_settings.return_value.AI_ASSISTANT_TYPE = "claude_code"
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
@@ -162,7 +144,6 @@ class TestCheckAIRunningInSession:
     def manager(self):
         """创建 TmuxSessionManager 实例"""
         with patch('src.ai_executor.tmux_session.get_settings') as mock_settings:
-            mock_settings.return_value.AI_ASSISTANT_TYPE = "claude_code"
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
@@ -222,7 +203,6 @@ class TestCreateTmuxSession:
     def manager(self):
         """创建 TmuxSessionManager 实例"""
         with patch('src.ai_executor.tmux_session.get_settings') as mock_settings:
-            mock_settings.return_value.AI_ASSISTANT_TYPE = "claude_code"
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
@@ -259,7 +239,6 @@ class TestEnsureTmuxSession:
     def manager(self):
         """创建 TmuxSessionManager 实例"""
         with patch('src.ai_executor.tmux_session.get_settings') as mock_settings:
-            mock_settings.return_value.AI_ASSISTANT_TYPE = "claude_code"
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
@@ -307,7 +286,6 @@ class TestStartAIInExistingSession:
     def manager(self):
         """创建 TmuxSessionManager 实例"""
         with patch('src.ai_executor.tmux_session.get_settings') as mock_settings:
-            mock_settings.return_value.AI_ASSISTANT_TYPE = "claude_code"
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
@@ -344,7 +322,6 @@ class TestSendCommand:
     def manager(self):
         """创建 TmuxSessionManager 实例"""
         with patch('src.ai_executor.tmux_session.get_settings') as mock_settings:
-            mock_settings.return_value.AI_ASSISTANT_TYPE = "claude_code"
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
@@ -428,7 +405,6 @@ class TestCleanTmuxOutput:
     def manager(self):
         """创建 TmuxSessionManager 实例"""
         with patch('src.ai_executor.tmux_session.get_settings') as mock_settings:
-            mock_settings.return_value.AI_ASSISTANT_TYPE = "claude_code"
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"
@@ -483,7 +459,6 @@ class TestMonitorOutput:
     def manager(self):
         """创建 TmuxSessionManager 实例"""
         with patch('src.ai_executor.tmux_session.get_settings') as mock_settings:
-            mock_settings.return_value.AI_ASSISTANT_TYPE = "claude_code"
             mock_settings.return_value.CLAUDE_CODE_CLI_PATH = "claude"
             mock_settings.return_value.CLAUDE_CODE_WORKSPACE_DIR = Path("/test")
             mock_settings.return_value.TMUX_SESSION_NAME = "cc"

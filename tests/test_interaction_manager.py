@@ -85,6 +85,28 @@ class TestInteractionManager:
         assert result["value"] == "no"
 
     @pytest.mark.asyncio
+    async def test_handle_codex_approval(self, interaction_manager, mock_feishu_api):
+        from src.agent.approval import codex_approval_broker
+
+        approval_id, future = codex_approval_broker.create("test_user")
+        interaction_data = {
+            "action_value": {
+                "action": "codex_approval",
+                "approval_id": approval_id,
+                "decision": "accept",
+            },
+            "operator": {"open_id": "test_user"},
+            "context": {},
+        }
+
+        result = await interaction_manager.handle_card_interaction(
+            interaction_data, mock_feishu_api
+        )
+
+        assert result["resolved"] is True
+        assert await asyncio.wait_for(future, timeout=1) == "accept"
+
+    @pytest.mark.asyncio
     async def test_handle_card_interaction_form_select(self, interaction_manager, mock_feishu_api):
         """测试处理单选表单提交"""
         interaction_data = {
@@ -419,6 +441,44 @@ class TestOptionCardDispatch:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_stale_codex_think_card_returns_explicit_chat_error(
+        self, interaction_manager, mock_feishu_api
+    ):
+        """模型切换后点击旧 Think 卡，应明确提示重新发送 #think。"""
+        interaction_data = {
+            "action_value": {
+                "opt": "select",
+                "cat": "codex_effort",
+                "key": "high",
+                "model_id": "gpt-5.6-luna",
+            },
+            "form_value": None,
+            "operator": {"open_id": "ou_test123"},
+            "context": {"open_message_id": "msg_123"},
+        }
+        send_card = AsyncMock(return_value=("om_error", None))
+        stale_error = ValueError(
+            "该 Think 卡片属于模型 gpt-5.6-luna，当前模型已切换为 "
+            "gpt-5.6-terra，请重新发送 #think"
+        )
+
+        with patch(
+            "src.handlers.codex_commands.CodexCommands.handle_effort_select",
+            new=AsyncMock(side_effect=stale_error),
+        ), patch("src.card_dispatcher.CardDispatcher.send_card", send_card):
+            result = await interaction_manager.handle_card_interaction(
+                interaction_data, mock_feishu_api
+            )
+
+        assert result["type"] == "option_card_error"
+        assert result["error"] == "原 Think 卡片已因模型切换失效，请重新发送 #think"
+        mock_feishu_api.send_message.assert_awaited_once_with(
+            "ou_test123", result["error"]
+        )
+        assert send_card.await_args.kwargs["title"] == "Think 卡片已失效"
+        assert send_card.await_args.kwargs["content"] == result["error"]
+
+    @pytest.mark.asyncio
     async def test_option_card_select_ws_group(self, interaction_manager, mock_feishu_api):
         """选项卡 ws_group 类别 select 应展示该一级目录的 level-2 内容"""
         interaction_data = {
@@ -551,14 +611,12 @@ class TestOptionCardDispatch:
             "src.handlers.workspace_commands.WorkspaceCommands.show_workspace_option_card",
             new=AsyncMock(),
         ):
-            # 当前 handle_card_interaction 直接将 action_value 视作 dict 判定类型
-            # 字符串形式的 value 不应触发 option_card 分发（需要上游先 parse）
             result = await interaction_manager.handle_card_interaction(
                 interaction_data, mock_feishu_api
             )
 
-        # 字符串 action_value 当前不会触发 option card 分发（已知的现状）
-        assert result is None or result["type"].startswith("option_card_") is False
+        assert result == {"type": "option_card_select", "category": "ws", "key": "2"}
+        mock_select.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_send_message_func_forwards_dict_card(self, interaction_manager, mock_feishu_api):
@@ -583,14 +641,20 @@ class TestOptionCardDispatch:
         # 抓取 send_func
         send_func = mock_select.await_args.args[2]
         before = mock_feishu_api.send_message.await_count
-        await send_func("ou_user", card={"schema": "2.0", "body": {}})
+        await send_func("ou_user", card={
+            "schema": "2.0",
+            "header": {"title": {"tag": "plain_text", "content": "测试选项"}},
+            "body": {},
+        })
         after = mock_feishu_api.send_message.await_count
         assert after - before == 1, "send_message_func 应将 dict 卡片转发给 feishu_api.send_message"
         # 最近一次调用：第二个位置参数应是序列化后的字符串
         last_call = mock_feishu_api.send_message.call_args_list[-1]
         assert last_call.args[0] == "ou_user"
         import json
-        json.loads(last_call.args[1])  # 能解析回 dict 说明是合法 JSON 字符串
+        payload = json.loads(last_call.args[1])
+        assert payload["header"]["title"]["content"].startswith("[")
+        assert payload["body"]["elements"][0]["content"].startswith("📨 卡片编号:")
 
     @pytest.mark.asyncio
     async def test_send_message_func_forwards_text(self, interaction_manager, mock_feishu_api):

@@ -120,6 +120,27 @@ class Database:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_direction ON messages(direction)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_source ON messages(message_source)")
 
+            # 飞书 WebSocket 采用至少一次投递；先原子 claim，避免重复执行有副作用的命令。
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS processed_events (
+                    source TEXT NOT NULL,
+                    event_id TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL,
+                    PRIMARY KEY (source, event_id)
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS agent_sessions (
+                    backend TEXT NOT NULL,
+                    workspace TEXT NOT NULL,
+                    external_session_id TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL,
+                    updated_at TIMESTAMP NOT NULL,
+                    PRIMARY KEY (backend, workspace)
+                )
+            """)
+
             # 卡片编号序列表 - 用于替代文件存储的消息计数器
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS card_id_seq (
@@ -142,6 +163,8 @@ class Database:
 
             # 保留旧表（不删除历史数据），但不创建索引
             # tasks 表保留但不再使用
+
+        self.db_path.chmod(0o600)
 
     def save_message(self, message: Message) -> int:
         """保存消息 - 使用 SQLite AUTOINCREMENT 生成消息编号，返回 id"""
@@ -173,6 +196,28 @@ class Database:
             ))
 
             return cursor.lastrowid
+
+    def claim_inbound_event(self, source: str, event_id: str) -> bool:
+        """原子认领入站事件；重复投递返回 False，不再次执行。"""
+        if not source or not event_id:
+            return False
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO processed_events (source, event_id, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (source, event_id, datetime.now().isoformat()),
+            )
+            return cursor.rowcount == 1
+
+    def release_inbound_event(self, source: str, event_id: str) -> None:
+        """处理未完成时释放认领，让平台重投可以安全重试。"""
+        with self._get_connection() as conn:
+            conn.execute(
+                "DELETE FROM processed_events WHERE source = ? AND event_id = ?",
+                (source, event_id),
+            )
 
     def get_user_messages(self, user_id: str, limit: int = 50) -> List[Message]:
         """获取用户的消息"""
@@ -313,6 +358,36 @@ class Database:
             cursor.execute("UPDATE card_id_seq SET seq_value = ? WHERE id = 1", (new_value,))
             conn.commit()
             return new_value
+
+    def get_agent_session(self, backend: str, workspace: str) -> Optional[str]:
+        """获取指定后端和工作空间持久化的外部 session id。"""
+        with self._get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT external_session_id FROM agent_sessions
+                WHERE backend = ? AND workspace = ?
+                """,
+                (backend, workspace),
+            ).fetchone()
+            return row["external_session_id"] if row else None
+
+    def save_agent_session(
+        self, backend: str, workspace: str, external_session_id: str
+    ) -> None:
+        """新增或更新 Agent session 映射。"""
+        now = datetime.now().isoformat()
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO agent_sessions
+                    (backend, workspace, external_session_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(backend, workspace) DO UPDATE SET
+                    external_session_id = excluded.external_session_id,
+                    updated_at = excluded.updated_at
+                """,
+                (backend, workspace, external_session_id, now, now),
+            )
 
 # 全局数据库实例 - 延迟初始化
 # 在 standalone 模式下（从非项目目录调用），跳过数据库初始化

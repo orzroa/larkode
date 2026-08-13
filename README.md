@@ -12,7 +12,7 @@
 | ⚡ **实时流式输出** | AI 回答实时流式展示到飞书卡片，无需等待完整响应，体验流畅 |
 | 🔔 **AI 主动通知** | 配置 Hook 后，AI 完成任务或需要确认时主动通知你 |
 | 🧠 **自动拉起会话** | 发送指令后自动启动 AI 进程，无需手动启动 |
-| 🔌 **多 AI 支持** | 支持 Claude Code、iFlow，工厂模式易于扩展新助手 |
+| 🔌 **多 Agent 支持** | 支持 Claude Code、Codex，适配器模式易于扩展新 Agent |
 | 💬 **多 IM 框架** | 架构支持多 IM 平台，可适配Slack、钉钉等IM 框架  |
 | 🎛️ **CCR 支持** | 内置对 Claude Code Router 的支持，手机端随时切换模型 |
 | 📁 **工作空间自动发现** | 自动扫描工作空间目录，支持按序号/名称快速切换，无需手动配置每个项目 |
@@ -108,7 +108,7 @@ FEISHU_APP_ID=cli_xxxxx
 FEISHU_APP_SECRET=xxxxx
 
 # AI 助手配置（必填）
-AI_ASSISTANT_TYPE=claude_code
+AGENT_BACKEND=claude_code
 ```
 
 **💡 提示：环境变量展开**
@@ -225,10 +225,11 @@ FEISHU_MESSAGE_RECEIVE_ID_TYPE=union_id   # 或 open_id / user_id，需与上面
 | `#cancel` | 取消当前运行 |
 | `#history [数量]` | 查看历史消息（默认10条） |
 | `#shot [行数]` | 查看截屏（默认200行，如 `#shot 500`） |
-| `#model [序号]` | 查看或切换模型（无参数显示列表） |
+| `#model` | 查看或切换当前 Agent 模型 |
+| `#think` | 查看或切换 Codex Think 等级 |
 | `#ws [序号/名称]` | 查看或切换工作空间（自动发现项目列表） |
 
-> **💡 未识别的 `#xxx` 命令**：会自动去掉 `#` 前缀（如 `#查看代码` → `查看代码`），**固定在 larkode 空间** 作为 AI 命令执行（不影响当前工作空间）。
+> **💡 未识别的 `#xxx` 命令**：作为平台控制命令拒绝，不会交给 Agent 执行。请输入 `#help` 查看可用命令。
 
 #### MiniMax 多媒体命令 (`#mm`)
 
@@ -250,10 +251,10 @@ FEISHU_MESSAGE_RECEIVE_ID_TYPE=union_id   # 或 open_id / user_id，需与上面
 AI: [执行并返回结果]
 
 用户: #model
-AI: [显示可用模型列表]
+AI: [显示当前 Agent 的可用模型列表]
 
 用户: #model 1
-AI: [切换到模型1]
+AI: [Claude Code / CCR 模式下切换到模型 1]
 
 用户: #history 20
 AI: [显示最近20条历史消息]
@@ -400,9 +401,9 @@ WorkspaceCommands / CCRCommands
 
 **Q: 如何选择 AI 助手？**
 
-通过 `AI_ASSISTANT_TYPE` 环境变量配置：
+通过 `AGENT_BACKEND` 环境变量配置：
 - `claude_code` - 使用 Claude Code（默认）
-- `iflow` - 使用 iFlow CLI
+- `codex` - 使用 Codex App Server
 
 **Q: 服务启动失败怎么办？**
 
@@ -440,7 +441,7 @@ Integrate Feishu (Lark) with AI assistants via WebSocket long connections. The s
 | ⚡ **Real-time Streaming** | AI responses stream to Feishu cards in real-time - no waiting for complete responses |
 | 🔔 **AI Proactive Notifications** | With Hook configured, AI notifies you when tasks complete or confirmation is needed |
 | 🧠 **Auto-start Session** | AI process starts automatically when you send a command - no manual startup needed |
-| 🔌 **Multi-AI Support** | Supports Claude Code, iFlow - factory pattern makes adding new assistants easy |
+| 🔌 **Multi-Agent Support** | Supports Claude Code and Codex through backend adapters |
 | 💬 **Multi-IM Framework** | Architecture supports multiple IM platforms - easy to extend |
 | 🎛️ **CCR Support** | Built-in support for Claude Code Router - switch models anytime from mobile |
 | 📁 **Auto Workspace Discovery** | Automatically scan workspace directories, quick switch by index/name without manual configuration |
@@ -536,7 +537,7 @@ FEISHU_APP_ID=cli_xxxxx
 FEISHU_APP_SECRET=xxxxx
 
 # AI assistant configuration (required)
-AI_ASSISTANT_TYPE=claude_code
+AGENT_BACKEND=claude_code
 ```
 
 **💡 Tip: Environment Variable Expansion**
@@ -653,10 +654,11 @@ After installation, Claude Code can use shortcuts like "send files to Feishu".
 | `#cancel` | Cancel current execution |
 | `#history [count]` | View message history (default 10) |
 | `#shot [lines]` | View screenshot (default 200, e.g., `#shot 500`) |
-| `#model [index]` | View or switch model (no arg shows list) |
+| `#model` | View or switch the active Agent model |
+| `#think` | View or switch Codex Think effort |
 | `#ws [index/name]` | View or switch workspace (auto-discover project list) |
 
-> **💡 Unrecognized `#xxx` commands**: The `#` prefix is automatically removed (e.g., `#查看代码` → `查看代码`) and executed as an AI command **in the larkode workspace** (without affecting the current workspace).
+> **💡 Unrecognized `#xxx` commands** are rejected as unknown platform-control commands and are never forwarded to the Agent. Use `#help` to list available commands.
 
 #### MiniMax Multimedia Commands (`#mm`)
 
@@ -782,9 +784,9 @@ uv run --no-project pytest tests/integration/ -v
 
 **Q: How to choose AI assistant?**
 
-Configure via `AI_ASSISTANT_TYPE` environment variable:
+Configure via the `AGENT_BACKEND` environment variable:
 - `claude_code` - Use Claude Code (default)
-- `iflow` - Use iFlow CLI
+- `codex` - Use Codex App Server
 
 **Q: What to do if service startup fails?**
 

@@ -148,5 +148,5 @@ tests/
 
 - [ ] 支持录制/回放模式
 - [ ] 添加性能基准测试
-- [ ] 支持不同 AI 助手（iFlow）的 Hook 格式
+- [ ] 将 Claude Hook 事件迁移到统一 AgentEvent
 - [ ] 添加可视化测试报告

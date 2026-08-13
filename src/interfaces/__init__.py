@@ -40,7 +40,6 @@ from src.interfaces.ai_assistant import (
 from src.interfaces.hook_handler import (
     IHookHandler,
     ClaudeHookHandler,
-    IFlowHookHandler,
     HookEventType,
     HookContext,
     detect_handler,
@@ -80,7 +79,6 @@ __all__ = [
     # Hook Handler
     "IHookHandler",
     "ClaudeHookHandler",
-    "IFlowHookHandler",
     "HookEventType",
     "HookContext",
     "detect_handler",

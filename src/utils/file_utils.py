@@ -27,7 +27,8 @@ def save_temp_file(
     from src.config.settings import Config, get_settings
 
     dir_path = directory or get_settings().UPLOAD_DIR
-    dir_path.mkdir(parents=True, exist_ok=True)
+    dir_path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    dir_path.chmod(0o700)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     file_name = f"{prefix}_{timestamp}.{extension}"
@@ -35,5 +36,6 @@ def save_temp_file(
 
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
+    file_path.chmod(0o600)
 
     return file_path

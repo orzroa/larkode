@@ -5,6 +5,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from pathlib import Path
 import asyncio
+import threading
 
 import sys
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -175,3 +176,129 @@ class TestEventHandlers:
             with patch('asyncio.get_event_loop', side_effect=RuntimeError("No loop")):
                 # 应该捕获异常，不抛出
                 do_p2_im_message_receive_v1(mock_data)
+
+    @pytest.mark.asyncio
+    async def test_card_callback_thread_is_bridged_to_owner_loop(
+        self, mock_interaction_manager, mock_feishu_api
+    ):
+        """飞书 SDK 线程不得创建临时 loop，业务协程应回到服务 owner loop。"""
+        from src.handlers.event_handlers import create_event_handlers
+
+        owner_loop = asyncio.get_running_loop()
+        observed_loops = []
+
+        async def handle(*_args):
+            observed_loops.append(asyncio.get_running_loop())
+
+        mock_interaction_manager.handle_card_interaction.side_effect = handle
+        _, callback = create_event_handlers(
+            mock_interaction_manager, mock_feishu_api, owner_loop=owner_loop
+        )
+        data = MagicMock()
+        data.event.operator.open_id = "ou_allowed"
+        data.event.operator.user_id = None
+        data.event.operator.union_id = None
+        data.event.action.value = {"opt": "select", "cat": "codex_model"}
+        data.event.action.form_value = None
+        data.event.context.open_message_id = "om_1"
+        data.event.context.open_chat_id = "oc_1"
+
+        settings = Mock()
+        settings.is_feishu_user_authorized.return_value = True
+        with patch("src.handlers.event_handlers.get_settings", return_value=settings):
+            thread = threading.Thread(target=callback, args=(data,))
+            thread.start()
+            thread.join()
+            for _ in range(20):
+                if observed_loops:
+                    break
+                await asyncio.sleep(0.01)
+
+        assert observed_loops == [owner_loop]
+
+    def test_unauthorized_card_action_is_ignored(
+        self, mock_interaction_manager, mock_feishu_api
+    ):
+        from src.handlers.event_handlers import create_event_handlers
+
+        _, callback = create_event_handlers(mock_interaction_manager, mock_feishu_api)
+        data = MagicMock()
+        data.event.operator.open_id = "ou_intruder"
+        settings = Mock()
+        settings.is_feishu_user_authorized.return_value = False
+
+        with patch("src.handlers.event_handlers.get_settings", return_value=settings):
+            callback(data)
+
+        mock_interaction_manager.handle_card_interaction.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_duplicate_message_event_is_not_dispatched(
+        self, mock_interaction_manager, mock_feishu_api
+    ):
+        from src.handlers.event_handlers import create_event_handlers
+
+        owner_loop = asyncio.get_running_loop()
+        callback, _ = create_event_handlers(
+            mock_interaction_manager, mock_feishu_api, owner_loop=owner_loop
+        )
+        data = MagicMock()
+        data.event.sender.sender_id.open_id = "ou_allowed"
+        data.event.sender.sender_id.user_id = None
+        data.event.sender.sender_id.union_id = None
+        data.event.message.message_id = "om_duplicate"
+        data.event.message.content = '{"text":"run"}'
+        data.event.message.message_type = "text"
+        data.event.message.create_time = "1"
+        data.event.message.chat_type = "p2p"
+
+        settings = Mock()
+        settings.is_feishu_user_authorized.return_value = True
+        with patch("src.handlers.event_handlers.get_settings", return_value=settings), patch(
+            "src.storage.db.claim_inbound_event", side_effect=[True, False]
+        ), patch("src.message_handler.message_handler") as handler:
+            handler.handle_event = AsyncMock()
+            callback(data)
+            callback(data)
+            for _ in range(20):
+                if handler.handle_event.await_count:
+                    break
+                await asyncio.sleep(0.01)
+
+        handler.handle_event.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_failed_message_processing_releases_idempotency_claim(
+        self, mock_interaction_manager, mock_feishu_api
+    ):
+        from src.handlers.event_handlers import create_event_handlers
+
+        owner_loop = asyncio.get_running_loop()
+        callback, _ = create_event_handlers(
+            mock_interaction_manager, mock_feishu_api, owner_loop=owner_loop
+        )
+        data = MagicMock()
+        data.event.sender.sender_id.open_id = "ou_allowed"
+        data.event.sender.sender_id.user_id = None
+        data.event.sender.sender_id.union_id = None
+        data.event.message.message_id = "om_retry"
+        data.event.message.content = '{"text":"run"}'
+        data.event.message.message_type = "text"
+        data.event.message.create_time = "1"
+        data.event.message.chat_type = "p2p"
+
+        settings = Mock()
+        settings.is_feishu_user_authorized.return_value = True
+        with patch("src.handlers.event_handlers.get_settings", return_value=settings), patch(
+            "src.storage.db.claim_inbound_event", return_value=True
+        ), patch("src.storage.db.release_inbound_event") as release, patch(
+            "src.message_handler.message_handler"
+        ) as handler:
+            handler.handle_event = AsyncMock(side_effect=RuntimeError("boom"))
+            callback(data)
+            for _ in range(20):
+                if release.called:
+                    break
+                await asyncio.sleep(0.01)
+
+        release.assert_called_once_with("feishu:im.message.receive_v1", "om_retry")

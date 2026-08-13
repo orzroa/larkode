@@ -4,7 +4,7 @@ Guidance for Claude Code (claude.ai/code) when working with this repository.
 
 ## Project Overview
 
-Python project integrating Feishu (Lark) with AI assistants (Claude Code, iFlow) via WebSocket long connections. The server actively connects to Feishu - no external port exposure required. Users send commands through Feishu to trigger AI assistant execution and receive real-time responses.
+Python project integrating Feishu (Lark) with desktop agents (Claude Code and Codex) via WebSocket long connections. The server actively connects to Feishu - no external port exposure required. Users send commands through Feishu to trigger agent execution and receive real-time responses.
 
 ## Directory Structure
 
@@ -63,8 +63,9 @@ uv run pytest tests/ -v -n0 --ignore=tests/integration/
 - `FEISHU_MESSAGE_DOMAIN` - Feishu API domain
 
 **AI Assistant Configuration**
-- `AI_ASSISTANT_TYPE` - AI assistant type (`claude_code`, `iflow`)
+- `AGENT_BACKEND` - Agent backend (`claude_code`, `codex`)
 - `CLAUDE_CODE_CLI_PATH` - Claude Code CLI path (default `claude`)
+- `CODEX_CLI_PATH` - Codex CLI path (default `codex`)
 - `AI_HOOK_SCRIPT` - Hook script path (default `src/hook_handler.py`)
 
 **Message Configuration**
@@ -175,7 +176,7 @@ See README.md for detailed Hook configuration steps.
 - Messages use Feishu interactive cards for rich display
 - Long outputs (>1500 chars) are truncated in card messages
 - **Session Management**: Auto-detects running AI processes, finds/reuses sessions, or creates new ones in tmux
-- **Multiple AI Support**: Supports Claude Code, iFlow via `AI_ASSISTANT_TYPE`
+- **Multiple Agent Support**: Supports Claude Code and Codex via `AGENT_BACKEND`
 
 ## Dependencies
 

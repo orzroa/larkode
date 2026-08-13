@@ -77,7 +77,7 @@ class IHookHandler(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """处理器名称 (如 'claude', 'iflow')"""
+        """处理器名称。"""
         pass
 
     @abstractmethod
@@ -160,95 +160,8 @@ class DefaultHookHandler(IHookHandler):
 
 
 
-class IFlowHookHandler(IHookHandler):
-    """iFlow CLI Hook 处理器"""
-
-    @property
-    def name(self) -> str:
-        return "iflow"
-
-    def get_session_id(self) -> Optional[str]:
-        import os
-        return os.getenv("IFLOW_SESSION_ID")
-
-    def get_cwd(self) -> Optional[str]:
-        import os
-        return os.getenv("IFLOW_CWD")
-
-    def _get_last_assistant_message_from_transcript(self, transcript_path: str) -> Optional[str]:
-        """从 transcript 文件读取最后的 assistant 文本消息"""
-        import json
-        from pathlib import Path
-
-        if not transcript_path:
-            return None
-
-        transcript_file = Path(transcript_path)
-        if not transcript_file.exists():
-            return None
-
-        try:
-            last_text_message = None
-            with open(transcript_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        entry = json.loads(line)
-                        if entry.get("type") == "assistant":
-                            message = entry.get("message", {})
-                            content = message.get("content", [])
-                            # 查找 text 类型的内容
-                            for item in content:
-                                if item.get("type") == "text":
-                                    text = item.get("text", "")
-                                    if text.strip():
-                                        last_text_message = text
-                    except json.JSONDecodeError:
-                        continue
-            return last_text_message
-        except Exception:
-            return None
-
-    def parse_stdin(self, stdin_data: str) -> HookContext:
-        """iFlow CLI stdin 格式解析"""
-        import json
-
-        data = {}
-        if stdin_data and stdin_data.strip():
-            try:
-                data = json.loads(stdin_data)
-            except json.JSONDecodeError:
-                pass
-
-        context = HookContext.from_dict(data)
-
-        # iFlow CLI 不传递 last_assistant_message，需要从 transcript 文件读取
-        if not context.last_assistant_message:
-            transcript_path = data.get("transcript_path", "")
-            context.last_assistant_message = self._get_last_assistant_message_from_transcript(transcript_path)
-
-        return context
-
-    def should_handle(self, context: HookContext) -> bool:
-        """iFlow CLI 处理所有事件"""
-        return True
-
-
 def detect_handler() -> IHookHandler:
-    """自动检测当前环境使用的处理器"""
-    import os
-
-    # 优先检测 iFlow CLI 环境
-    if any(os.getenv(key) for key in ["IFLOW_CLI_PATH", "IFLOW_SESSION_ID", "IFLOW_HOOK_EVENT_NAME"]):
-        return IFlowHookHandler()
-
-    # 检测 Claude 环境变量
-    if any(os.getenv(key) for key in ["CLAUDE_SESSION_ID", "CLAUDE_CODE CLI"]):
-        return DefaultHookHandler()
-
-    # 默认使用默认处理器
+    """返回 Claude Code Hook 处理器。Codex 使用 App Server 事件。"""
     return DefaultHookHandler()
 
 # Alias for backwards compatibility

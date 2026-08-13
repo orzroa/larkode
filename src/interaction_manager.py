@@ -52,7 +52,8 @@ class InteractionManager:
             处理结果
         """
         try:
-            action_value = interaction_data.get("action_value", {})
+            from src.option_card import parse_action_value
+            action_value = parse_action_value(interaction_data.get("action_value")) or {}
             form_value = interaction_data.get("form_value")
             operator = interaction_data.get("operator", {})
             context = interaction_data.get("context", {})
@@ -79,6 +80,11 @@ class InteractionManager:
                 if action_value.get("action") == "confirm":
                     value = action_value.get("value")
                     return await self._handle_confirm(user_open_id, message_id, value, feishu_api)
+
+                if action_value.get("action") == "codex_approval":
+                    return await self._handle_codex_approval(
+                        user_open_id, action_value, feishu_api
+                    )
 
                 # 选项卡（OptionCard）：opt 字段标识具体动作
                 opt = action_value.get("opt")
@@ -210,6 +216,35 @@ class InteractionManager:
         logger.warning(f"未知的表单类型: {form_value}")
         return None
 
+    async def _handle_codex_approval(
+        self, user_id: str, action_value: Dict[str, Any], feishu_api
+    ) -> Dict[str, Any]:
+        """处理 Codex App Server 审批按钮。"""
+        from src.agent.approval import codex_approval_broker
+
+        approval_id = action_value.get("approval_id", "")
+        decision = action_value.get("decision", "")
+        allowed = {"accept", "acceptForSession", "decline", "cancel"}
+        resolved = decision in allowed and codex_approval_broker.resolve(
+            approval_id, user_id, decision
+        )
+        if resolved:
+            labels = {
+                "accept": "已允许本次操作",
+                "acceptForSession": "已允许本会话中的同类操作",
+                "decline": "已拒绝操作",
+                "cancel": "已取消操作",
+            }
+            await self._quick_confirm(user_id, labels[decision], feishu_api)
+        else:
+            await self._quick_confirm(user_id, "该审批已失效或不属于当前用户", feishu_api)
+        return {
+            "type": "codex_approval",
+            "user_id": user_id,
+            "value": decision,
+            "resolved": resolved,
+        }
+
     async def wait_for_interaction(self, task_id: str, timeout: float = 300.0) -> Optional[Any]:
         """
         等待用户交互结果
@@ -299,7 +334,12 @@ class InteractionManager:
         opt = action_value.get("opt")
         cat = action_value.get("cat")
 
+        from src.card_dispatcher import CardDispatcher
+        card_dispatcher = CardDispatcher(feishu_api=feishu_api)
+
         async def send_message_func(uid, card=None, message=None):
+            if isinstance(card, dict):
+                return await card_dispatcher.send_interactive_card(uid, card)
             if card is not None:
                 payload = _serialize_card(card)
                 return await feishu_api.send_message(uid, payload)
@@ -392,6 +432,66 @@ class InteractionManager:
                 )
                 await handler.handle_model_select(user_id, key, send_message_func)
                 return {"type": "option_card_select", "category": "model", "key": key}
+
+        if cat in {"codex_model", "codex_effort"}:
+            from src.handlers.codex_commands import CodexCommands
+            from src.task_manager import task_manager
+
+            handler = CodexCommands(task_manager)
+            try:
+                if opt == "page":
+                    page = action_value.get("page", 1)
+                    if cat == "codex_model":
+                        await handler.show_model_option_card(user_id, send_message_func, page=page)
+                    else:
+                        await handler.show_effort_option_card(user_id, send_message_func, page=page)
+                    return {"type": "option_card_page", "category": cat, "page": page}
+                if opt == "select":
+                    key = action_value.get("key", "")
+                    if cat == "codex_model":
+                        await handler.handle_model_select(user_id, key, send_message_func)
+                    else:
+                        await handler.handle_effort_select(
+                            user_id,
+                            key,
+                            send_message_func,
+                            expected_model_id=action_value.get("model_id", ""),
+                        )
+                    return {"type": "option_card_select", "category": cat, "key": key}
+            except Exception as exc:
+                logger.error(f"处理 Codex 选项失败: {exc}", exc_info=True)
+                error_text = str(exc)
+                stale_effort_card = (
+                    cat == "codex_effort"
+                    and "Think 卡片属于模型" in error_text
+                    and "请重新发送 #think" in error_text
+                )
+                user_message = (
+                    "原 Think 卡片已因模型切换失效，请重新发送 #think"
+                    if stale_effort_card else f"设置失败：{error_text}"
+                )
+
+                # 卡片交互失败时必须给用户可见回执。先发纯文本，避免错误卡片
+                # 自身派发失败而导致用户只看到服务端日志。
+                await self._quick_confirm(user_id, user_message, feishu_api)
+
+                # 错误卡片仅作为增强展示；其失败不能影响已发送的文本回执。
+                try:
+                    await card_dispatcher.send_card(
+                        user_id=user_id,
+                        card_type="error",
+                        title="Think 卡片已失效" if stale_effort_card else "设置失败",
+                        content=user_message,
+                        message_type="error",
+                        template_color="red",
+                    )
+                except Exception as card_exc:
+                    logger.warning(f"发送 Codex 选项错误卡片失败: {card_exc}", exc_info=True)
+                return {
+                    "type": "option_card_error",
+                    "category": cat,
+                    "error": user_message,
+                }
 
         logger.warning(f"未知的选项卡交互: opt={opt}, cat={cat}, action_value={action_value}")
         return None

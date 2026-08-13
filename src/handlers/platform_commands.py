@@ -54,6 +54,14 @@ class PlatformCommands:
     def set_send_callback(self, send_via_sender):
         """设置发送回调函数"""
         self._send_via_sender = send_via_sender
+
+    def _is_codex_backend(self) -> bool:
+        """以实际运行中的助手为准，避免配置与进程状态不一致。"""
+        try:
+            status = self.tm.get_assistant_status()
+            return isinstance(status, dict) and status.get("assistant_type") == "codex"
+        except Exception:
+            return get_settings().get_agent_backend() == "codex"
     async def handle_command(self, user_id: str, command: str) -> bool:
         """
         处理平台系统命令
@@ -61,7 +69,7 @@ class PlatformCommands:
             user_id: 用户 ID
             command: 命令内容
         Returns:
-            bool: True 表示已识别并处理，False 表示未识别（上游应转为 AI 命令）
+            bool: True 表示已识别并处理，False 表示未识别（上游应拒绝）
         """
         parts = command.split(maxsplit=1)
         cmd = parts[0].lower()
@@ -77,6 +85,8 @@ class PlatformCommands:
                 await self._cmd_shot(user_id, args)
             case "#model":
                 await self._cmd_model(user_id, args)
+            case "#think":
+                await self._cmd_think(user_id)
             case "#ws":
                 await self._cmd_workspace(user_id, args)
             case "#mm":
@@ -86,9 +96,41 @@ class PlatformCommands:
         return True
 
     async def _cmd_model(self, user_id: str, args: str):
-        """处理 #model 命令 - CCR 模型切换"""
+        """按当前 Agent 后端显示或切换模型 / Think 等级。"""
+        if self._is_codex_backend():
+            from src.handlers.codex_commands import CodexCommands
+
+            codex = CodexCommands(self.tm)
+            try:
+                if args.strip().lower() in {"think", "effort"}:
+                    await codex.show_effort_option_card(user_id, self._send_via_sender)
+                else:
+                    await codex.show_model_option_card(user_id, self._send_via_sender)
+            except Exception as exc:
+                logger.error(f"读取 Codex 模型目录失败: {exc}", exc_info=True)
+                await self._send_error(user_id, f"读取 Codex 模型列表失败: {exc}")
+            return
         ccr = CCRCommands()
         await ccr.handle_model_command(user_id, args, self._send_via_sender)
+
+    async def _cmd_think(self, user_id: str):
+        """显示或切换当前 Codex 模型支持的 Think 等级。"""
+        if not self._is_codex_backend():
+            await self._send_error(
+                user_id,
+                "#think 仅适用于 Codex；Claude Code 的推理强度由 CCR 当前模型决定。",
+            )
+            return
+
+        from src.handlers.codex_commands import CodexCommands
+
+        try:
+            await CodexCommands(self.tm).show_effort_option_card(
+                user_id, self._send_via_sender
+            )
+        except Exception as exc:
+            logger.error(f"读取 Codex Think 等级失败: {exc}", exc_info=True)
+            await self._send_error(user_id, f"读取 Codex Think 等级失败: {exc}")
 
     async def _cmd_workspace(self, user_id: str, args: str):
         """处理 #ws 命令 - 工作空间切换"""
@@ -159,8 +201,14 @@ class PlatformCommands:
 
 ---
 
-🤖 **#model** `[序号/完整格式]`
-查看或切换 CCR 模型（无参数显示列表）
+🤖 **#model**
+查看或切换当前 Agent 的模型
+
+
+---
+
+🧠 **#think**
+查看或切换 Codex Think 等级（仅 Codex）
 
 
 ---
@@ -201,7 +249,25 @@ MiniMax 多媒体能力（#mm help 查看详情）
             )
             await self._send_via_sender(user_id, card=card)
     async def _cmd_cancel(self, user_id: str, args: str):
-        """发送 ESC 到 tmux"""
+        """按当前 Agent 后端取消正在执行的任务。"""
+        if self._is_codex_backend():
+            cancel_async = getattr(self.tm, "cancel_async", None)
+            cancelled = await cancel_async() if cancel_async else self.tm.cancel()
+            content = "已向 Codex 发送取消请求" if cancelled else "当前没有可取消的 Codex 任务"
+            if self.card_dispatcher:
+                await self.card_dispatcher.send_card(
+                    user_id=user_id,
+                    card_type="cancel",
+                    title="取消",
+                    content=content,
+                    message_type="status",
+                    template_color="grey",
+                )
+            else:
+                await self._send_via_sender(user_id, message=content)
+            return
+
+        # Claude Code 使用 tmux ESC。
         # 获取当前工作空间的 session 名称
         try:
             from src.workspace_manager import get_workspace_manager
@@ -296,6 +362,12 @@ MiniMax 多媒体能力（#mm help 查看详情）
             user_id: 用户 ID
             args: 可选的行数参数，如 "500"
         """
+        if self._is_codex_backend():
+            await self._send_error(
+                user_id,
+                "#shot 仅适用于 Claude Code 的 tmux 终端；Codex 输出会直接回传到卡片。",
+            )
+            return
         from src.utils.tmux_utils import get_tmux_last_lines
         logger.info(f"开始处理 #shot 命令，用户: {user_id}, 参数: {args}")
         # 解析参数：如果提供行数参数则使用，否则使用配置中的默认值

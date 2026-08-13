@@ -10,8 +10,7 @@
 # ///
 
 """
-Hook 日志记录器
-支持 Claude Code 和 iFlow CLI 的 Hooks 处理
+Claude Code Hook 日志记录器
 """
 # 标准库
 import asyncio
@@ -64,7 +63,8 @@ except ImportError:
 
 # 日志目录
 LOG_DIR = PROJECT_ROOT / "logs"
-LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+LOG_DIR.chmod(0o700)
 LOG_FILE = LOG_DIR / "hook_events.log"
 JSON_LOG_FILE = LOG_DIR / "hook_events.jsonl"
 
@@ -124,7 +124,7 @@ def collect_all_data(handler: IHookHandler, context: HookContext, stdin_data: st
     # 收集相关环境变量
     for key, value in os.environ.items():
         if any(prefix in key.upper() for prefix in [
-            "CLAUDE", "IFLOW", "FEISHU", "GIT", "HOME", "PATH"
+            "CLAUDE", "AI_WORKSPACE", "FEISHU", "GIT", "HOME", "PATH"
         ]):
             data["environment"][key] = value
 
@@ -152,6 +152,7 @@ stdin_parsed:
 """
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(log_line)
+    LOG_FILE.chmod(0o600)
 
     # 写入 JSONL 文件
     json_data = {
@@ -163,6 +164,7 @@ stdin_parsed:
     }
     with open(JSON_LOG_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(json_data, ensure_ascii=False) + "\n")
+    JSON_LOG_FILE.chmod(0o600)
 
 
 async def send_feishu_notification(message: str, message_type: str = "stop", event_name: str = "", cwd: Optional[str] = None) -> str:

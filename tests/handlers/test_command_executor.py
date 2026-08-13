@@ -1,6 +1,8 @@
 """
 测试命令执行器
 """
+import asyncio
+import json
 import pytest
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
 from pathlib import Path
@@ -104,6 +106,18 @@ class TestCommandExecutor:
         mock_platform_commands.handle_command.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_unknown_platform_command_fails_closed(self, command_executor, mock_platform_commands):
+        command_executor._platform_commands = mock_platform_commands
+        command_executor.platform.is_platform_command = Mock(return_value=True)
+        mock_platform_commands.handle_command.return_value = False
+        command_executor._execute_in_larkode_space = AsyncMock()
+
+        await command_executor.process_command("user_123", "#typo destructive request")
+
+        command_executor._execute_in_larkode_space.assert_not_awaited()
+        command_executor._message_sender.send_error.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_process_command_ai_command(self, command_executor, mock_task_manager):
         """测试处理 AI 命令"""
         with patch('src.handlers.command_executor.db') as mock_db:
@@ -193,3 +207,156 @@ class TestCommandExecutor:
 
         # 不应该抛出异常
         await command_executor.send_error("user_123", "Error occurred")
+
+    @pytest.mark.asyncio
+    async def test_codex_approval_card_returns_user_decision(
+        self, mock_task_manager, mock_message_sender, mock_platform
+    ):
+        from src.handlers.command_executor import CommandExecutor
+
+        feishu = Mock()
+        feishu.send_message = AsyncMock(return_value=True)
+        executor = CommandExecutor(
+            task_manager=mock_task_manager,
+            platform=mock_platform,
+            feishu_api=feishu,
+            message_sender=mock_message_sender,
+        )
+        future = asyncio.get_running_loop().create_future()
+        future.set_result("accept")
+
+        with patch("src.agent.approval.codex_approval_broker") as broker, patch(
+            "src.handlers.command_executor.get_settings"
+        ) as settings:
+            broker.create.return_value = ("approval_1", future)
+            settings.return_value.codex_approval_timeout = 10
+            result = await executor._handle_codex_server_request(
+                {
+                    "method": "item/commandExecution/requestApproval",
+                    "params": {"command": "git status", "cwd": "/tmp"},
+                },
+                "ou_1",
+            )
+
+        assert result == {"decision": "accept"}
+        payload = json.loads(feishu.send_message.await_args.args[1])
+        assert payload["header"]["title"]["content"] == "Codex 命令审批"
+
+    @pytest.mark.asyncio
+    async def test_codex_approval_uses_card_dispatcher_with_workspace(
+        self, mock_task_manager, mock_message_sender, mock_platform
+    ):
+        from src.handlers.command_executor import CommandExecutor
+
+        dispatcher = Mock()
+        dispatcher.send_interactive_card = AsyncMock(return_value="om_approval")
+        executor = CommandExecutor(
+            task_manager=mock_task_manager,
+            platform=mock_platform,
+            message_sender=mock_message_sender,
+            card_dispatcher=dispatcher,
+        )
+        future = asyncio.get_running_loop().create_future()
+        future.set_result("decline")
+        with patch("src.agent.approval.codex_approval_broker") as broker, patch(
+            "src.handlers.command_executor.get_settings"
+        ) as settings:
+            broker.create.return_value = ("approval_2", future)
+            settings.return_value.codex_approval_timeout = 10
+            result = await executor._handle_codex_server_request(
+                {
+                    "method": "item/fileChange/requestApproval",
+                    "params": {"grantRoot": "/tmp/a.py", "cwd": "/tmp/project"},
+                },
+                "ou_1",
+            )
+
+        assert result == {"decision": "decline"}
+        assert dispatcher.send_interactive_card.await_args.kwargs["workspace_path"] == "/tmp/project"
+
+    @pytest.mark.asyncio
+    async def test_codex_network_approval_always_shows_target(
+        self, mock_task_manager, mock_message_sender, mock_platform
+    ):
+        from src.handlers.command_executor import CommandExecutor
+
+        dispatcher = Mock()
+        dispatcher.send_interactive_card = AsyncMock(return_value="om_approval")
+        executor = CommandExecutor(
+            task_manager=mock_task_manager, platform=mock_platform,
+            message_sender=mock_message_sender, card_dispatcher=dispatcher,
+        )
+        future = asyncio.get_running_loop().create_future()
+        future.set_result("decline")
+        with patch("src.agent.approval.codex_approval_broker") as broker, patch(
+            "src.handlers.command_executor.get_settings"
+        ) as settings:
+            broker.create.return_value = ("approval_network", future)
+            settings.return_value.codex_approval_timeout = 10
+            await executor._handle_codex_server_request({
+                "method": "item/commandExecution/requestApproval",
+                "params": {
+                    "command": "curl example.com",
+                    "networkApprovalContext": {
+                        "host": "example.com", "protocol": "https", "port": 443,
+                    },
+                },
+            }, "ou_1")
+
+        card = dispatcher.send_interactive_card.await_args.args[1]
+        markdown = card["body"]["elements"][0]["content"]
+        assert "https://example.com:443" in markdown
+        assert "curl example.com" in markdown
+
+    @pytest.mark.asyncio
+    async def test_oversized_file_diff_cannot_be_approved(
+        self, mock_task_manager, mock_message_sender, mock_platform
+    ):
+        from src.handlers.command_executor import CommandExecutor
+
+        dispatcher = Mock()
+        dispatcher.send_interactive_card = AsyncMock(return_value="om_approval")
+        executor = CommandExecutor(
+            task_manager=mock_task_manager, platform=mock_platform,
+            message_sender=mock_message_sender, card_dispatcher=dispatcher,
+        )
+        future = asyncio.get_running_loop().create_future()
+        future.set_result("decline")
+        with patch("src.agent.approval.codex_approval_broker") as broker, patch(
+            "src.handlers.command_executor.get_settings"
+        ) as settings:
+            broker.create.return_value = ("approval_diff", future)
+            settings.return_value.codex_approval_timeout = 10
+            result = await executor._handle_codex_server_request({
+                "method": "item/fileChange/requestApproval",
+                "params": {
+                    "availableDecisions": ["accept", "decline"],
+                    "_item": {"diff": "x" * 5000},
+                },
+            }, "ou_1")
+
+        assert result == {"decision": "decline"}
+        card = dispatcher.send_interactive_card.await_args.args[1]
+        rendered = json.dumps(card, ensure_ascii=False)
+        assert "已禁止通过该卡片批准" in rendered
+        assert "允许一次" not in rendered
+
+    @pytest.mark.asyncio
+    async def test_codex_failed_outcome_sends_red_error_card(
+        self, command_executor, mock_task_manager, mock_card_dispatcher
+    ):
+        async def outputs(*_args):
+            yield "boom"
+
+        mock_task_manager.execute_command = outputs
+        mock_task_manager.get_assistant_status.return_value = {
+            "assistant_type": "codex",
+            "last_outcome": "error",
+        }
+        with patch("src.handlers.command_executor.get_settings") as settings:
+            settings.return_value.SHOW_COMMAND_CONFIRMATION_CARD = False
+            await command_executor.execute_command("ou_1", "test")
+
+        kwargs = mock_card_dispatcher.send_card.await_args.kwargs
+        assert kwargs["card_type"] == "error"
+        assert kwargs["template_color"] == "red"

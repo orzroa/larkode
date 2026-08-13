@@ -348,9 +348,12 @@ class FeishuCardBuilder(IIMCardBuilder):
         for element in elements:
             if element.get("tag") == "markdown":
                 content = element.get("content", "")
-                # 去除消息编号和时间头部（格式：📨 **消息编号**: xxx\n🕒 `xxx`\n\n）
-                # 匹配以 📨 **消息编号**: 开头到空行之前的内容
-                content = re.sub(r'^📨 \*\*消息编号\*\*:.*?\n🕒 `.*?`\n\n', '', content, flags=re.DOTALL)
+                # 去除统一元数据头部，同时兼容历史 Markdown 格式。
+                content = re.sub(
+                    r'^📨 (?:卡片编号|\*\*卡片编号\*\*|消息编号|\*\*消息编号\*\*):?[^\n]*\n'
+                    r'🕒 `?[^`\n]+`?\n\n?',
+                    '', content, flags=re.DOTALL
+                )
                 contents.append(content)
             elif element.get("tag") == "div":
                 # 处理 div 元素中的文本

@@ -60,7 +60,7 @@ python3 tests/generate_hook_fixtures.py --count 100 --skip-test-gen
 {
   "timestamp": "ISO8601 时间戳",
   "hook_event": "事件类型名称",
-  "handler": "处理器名称 (default/iflow)",
+  "handler": "处理器名称 (default)",
   "hostname": "主机名",
   "stdin_parsed": {
     "session_id": "会话 ID",

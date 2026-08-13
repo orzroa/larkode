@@ -46,6 +46,7 @@ class OptionCardData:
     template_color: str = "blue"
     header_note: str = ""
     max_label_len: int = 18
+    action_context: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def total_pages(self) -> int:
@@ -136,6 +137,7 @@ def build_option_card(data: OptionCardData) -> Dict[str, Any]:
                 "cat": data.category,
                 "key": item.key,
                 "page": data.page_clamped,
+                **data.action_context,
             }
             row.append(_make_button(value, text, button_type))
             if len(row) >= _BUTTONS_PER_ROW:
@@ -151,17 +153,17 @@ def build_option_card(data: OptionCardData) -> Dict[str, Any]:
         next_page = min(data.total_pages, data.page_clamped + 1)
         elements.append(_make_button_row([
             _make_button(
-                {"opt": "page", "cat": data.category, "page": prev_page},
+                {"opt": "page", "cat": data.category, "page": prev_page, **data.action_context},
                 "← 上一页",
                 "default" if data.page_clamped == 1 else "primary",
             ),
             _make_button(
-                {"opt": "noop", "cat": data.category},
+                {"opt": "noop", "cat": data.category, **data.action_context},
                 f"{data.page_clamped}/{data.total_pages}",
                 "default",
             ),
             _make_button(
-                {"opt": "page", "cat": data.category, "page": next_page},
+                {"opt": "page", "cat": data.category, "page": next_page, **data.action_context},
                 "下一页 →",
                 "default" if data.page_clamped == data.total_pages else "primary",
             ),

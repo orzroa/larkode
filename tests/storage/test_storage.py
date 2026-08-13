@@ -58,6 +58,13 @@ class TestStorageRowHandling:
             assert isinstance(msg.message_type, MessageType)
             assert msg.id is not None
 
+    def test_claim_inbound_event_is_atomic_and_idempotent(self):
+        assert self.db.claim_inbound_event("feishu:message", "om_1") is True
+        assert self.db.claim_inbound_event("feishu:message", "om_1") is False
+        self.db.release_inbound_event("feishu:message", "om_1")
+        assert self.db.claim_inbound_event("feishu:message", "om_1") is True
+        assert self.db.claim_inbound_event("feishu:message", "om_2") is True
+
     def test_get_messages_by_direction(self):
         """测试按方向获取消息"""
         user_id = "test_user"

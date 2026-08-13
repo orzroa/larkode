@@ -3,6 +3,7 @@
 """
 import asyncio
 import json
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -26,6 +27,7 @@ class FeishuAPI:
         self.app_secret = app_secret
         self.access_token: Optional[str] = None
         self._client: Optional[Any] = None
+        self._union_id_cache: Dict[str, tuple[float, str]] = {}
 
     def _get_client(self) -> Any:
         """获取飞书客户端实例（复用）"""
@@ -38,7 +40,7 @@ class FeishuAPI:
             .app_id(self.app_id or settings.FEISHU_APP_ID) \
             .app_secret(self.app_secret or settings.FEISHU_APP_SECRET) \
             .domain(getattr(lark, settings.FEISHU_MESSAGE_DOMAIN)) \
-            .log_level(lark.LogLevel.DEBUG) \
+            .log_level(lark.LogLevel.WARNING) \
             .build()
         return self._client
 
@@ -195,9 +197,19 @@ class FeishuAPI:
         if not open_id or not open_id.startswith("ou_"):
             return None
 
+        cached = self._union_id_cache.get(open_id)
+        if cached and cached[0] > time.monotonic():
+            return cached[1]
+
         user_info = await self.get_user_info(open_id)
         if user_info and user_info.get("union_id"):
-            return user_info["union_id"]
+            union_id = user_info["union_id"]
+            self._union_id_cache[open_id] = (time.monotonic() + 3600.0, union_id)
+            # 防止长生命周期进程中的缓存无界增长。
+            if len(self._union_id_cache) > 1024:
+                oldest = min(self._union_id_cache, key=lambda key: self._union_id_cache[key][0])
+                self._union_id_cache.pop(oldest, None)
+            return union_id
         return None
 
     async def get_message(self, msg_id: str) -> Optional[Dict[str, Any]]:
@@ -452,4 +464,3 @@ class FeishuAPI:
         """
         from src.feishu.file_ops import upload_audio
         return await upload_audio(self.app_secret, file_path)
-

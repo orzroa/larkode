@@ -227,8 +227,9 @@ class TestGetUserInfo:
             with patch('lark_oapi.Client.builder') as mock_builder:
                 mock_response = MagicMock()
                 mock_response.success.return_value = True
-                mock_response.data.name = "Test User"
-                mock_response.data.avatar_72x72 = "https://avatar.url"
+                mock_response.data.user.union_id = "on_123"
+                mock_response.data.user.name = "Test User"
+                mock_response.data.user.avatar = "https://avatar.url"
 
                 mock_client = MagicMock()
                 mock_client.contact.v3.user.get.return_value = mock_response

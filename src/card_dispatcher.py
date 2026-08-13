@@ -6,6 +6,7 @@
 - 协调卡片构建、编号管理、文件上传、数据库存储
 - 根据内容长度自动判断是否上传文件
 """
+import copy
 import json
 import os
 from datetime import datetime
@@ -28,6 +29,42 @@ try:
     logger = get_logger(__name__)
 except NameError:
     logger = logging.getLogger(__name__)
+
+
+def get_workspace_name(workspace_path: Optional[str] = None) -> Optional[str]:
+    """解析当前工作区名称，用于所有卡片标题前缀。"""
+    workspace_name = None
+
+    if workspace_path:
+        try:
+            workspace_name = Path(workspace_path).name
+        except Exception:
+            pass
+
+    if not workspace_name:
+        try:
+            workspace_dir = os.getenv("AI_WORKSPACE_DIR") or os.getenv("CLAUDE_CODE_DIR")
+            if workspace_dir:
+                workspace_name = Path(workspace_dir).name
+        except Exception:
+            pass
+
+    if not workspace_name:
+        try:
+            from src.workspace_manager import get_workspace_manager
+            current_workspace = get_workspace_manager().get_current_workspace()
+            if current_workspace:
+                workspace_name = Path(current_workspace).name
+        except Exception:
+            pass
+
+    if not workspace_name:
+        try:
+            workspace_name = Path(os.getcwd()).name
+        except Exception:
+            pass
+
+    return workspace_name or None
 
 
 class CardDispatcher:
@@ -83,12 +120,8 @@ class CardDispatcher:
         return int(self._card_id_manager.get_next_id())
 
     def _format_timestamp(self, iso_timestamp: str) -> str:
-        """格式化时间戳"""
-        try:
-            dt = datetime.fromisoformat(iso_timestamp)
-            return dt.strftime("%Y-%m-%d %H:%M:%S")
-        except Exception:
-            return iso_timestamp
+        """返回统一展示的 ISO 8601 时间戳（不丢失微秒）。"""
+        return iso_timestamp
 
     def _build_display_content(
         self,
@@ -107,7 +140,70 @@ class CardDispatcher:
             str: 包含元数据的展示内容
         """
         formatted_time = self._format_timestamp(timestamp)
-        return f"📨 **卡片编号**: {card_id}\n🕒 `{formatted_time}`\n{pure_content}"
+        return f"📨 卡片编号: {card_id}\n🕒 {formatted_time}\n{pure_content}"
+
+    def _prepare_interactive_card(
+        self,
+        card: dict,
+        card_id: int,
+        timestamp: str,
+        workspace_path: Optional[str] = None,
+    ) -> dict:
+        """给带按钮的原始卡片补齐统一元数据，保留所有交互元素。"""
+        prepared = copy.deepcopy(card)
+        header = prepared.setdefault("header", {})
+        title = header.get("title")
+        workspace_name = get_workspace_name(workspace_path)
+        if isinstance(title, dict) and workspace_name:
+            title_content = title.get("content", "")
+            if title_content and not title_content.startswith("["):
+                title["content"] = f"[{workspace_name}] {title_content}"
+
+        metadata = f"📨 卡片编号: {card_id}\n🕒 {timestamp}"
+        body = prepared.setdefault("body", {})
+        elements = body.setdefault("elements", [])
+        if elements and isinstance(elements[0], dict) and elements[0].get("tag") == "markdown":
+            first = elements[0]
+            content = first.get("content", "")
+            first["content"] = f"{metadata}\n{content}" if content else metadata
+        else:
+            elements.insert(0, {"tag": "markdown", "content": metadata})
+        return prepared
+
+    async def send_interactive_card(
+        self,
+        user_id: str,
+        card: dict,
+        message_type: str = "response",
+        message_source: MessageSource = MessageSource.FEISHU,
+        workspace_path: Optional[str] = None,
+    ) -> str:
+        """统一发送包含按钮的交互卡片，并完成编号、时间和入库。"""
+        card_id = self._get_card_id()
+        timestamp = datetime.now().isoformat()
+        prepared = self._prepare_interactive_card(
+            card, card_id, timestamp, workspace_path
+        )
+        payload = json.dumps(prepared, ensure_ascii=False)
+
+        feishu_message_id = ""
+        if self.feishu:
+            feishu_message_id = await self.feishu.send_message(user_id, payload) or ""
+        elif self.platform:
+            feishu_message_id = await self.platform.send_message(user_id, payload) or ""
+        else:
+            raise RuntimeError("交互卡片没有可用的发送通道")
+
+        if feishu_message_id:
+            await self._store_message(
+                user_id=user_id,
+                pure_content=json.dumps(card, ensure_ascii=False),
+                card_id=card_id,
+                message_type=message_type,
+                feishu_message_id=feishu_message_id,
+                message_source=message_source,
+            )
+        return feishu_message_id
 
     async def _upload_file_and_send(
         self,
@@ -147,10 +243,13 @@ class CardDispatcher:
                 file_key = await self.feishu.upload_file(file_path, get_settings().FILE_UPLOAD_TYPE)
                 if file_key:
                     # 发送文件消息
-                    await self.feishu.send_file_message(user_id, file_key)
-
-                    # 构建说明卡片内容（包含编号和时间）
-                    display_content = f"完整内容已保存为文件: `{file_name}`"
+                    file_sent = await self.feishu.send_file_message(user_id, file_key)
+                    if file_sent:
+                        display_content = f"完整内容已保存为文件: `{file_name}`"
+                    else:
+                        file_key = None
+                        preview = file_content[:1000]
+                        display_content = f"文件消息发送失败，以下为内容预览：\n\n{preview}"
                 else:
                     display_content = f"文件上传失败，但内容已保存为: `{file_name}`"
             else:
@@ -171,7 +270,7 @@ class CardDispatcher:
         template_color: str,
         card_id: Optional[int] = None,
         timestamp: Optional[str] = None,
-    ) -> Optional[str]:
+    ) -> Tuple[str, bool]:
         """发送普通卡片
 
         Args:
@@ -205,11 +304,13 @@ class CardDispatcher:
             if success:
                 # 尝试获取 message_id
                 if hasattr(self._notification_sender, 'last_message_id'):
-                    return self._notification_sender.last_message_id
+                    return self._notification_sender.last_message_id or "", True
+                return "", True
         elif self.platform:
-            return await self.platform.send_card(user_id, card)
+            result = await self.platform.send_card(user_id, card)
+            return result or "", bool(result)
 
-        return ""
+        return "", False
 
     async def _store_message(
         self,
@@ -272,45 +373,7 @@ class CardDispatcher:
             Tuple[str, Optional[str]]: (feishu_message_id, file_key or None)
         """
         # 添加工作空间名称前缀到标题
-        workspace_name = None
-
-        # 优先使用传入的工作空间路径（hook 进程场景）
-        if workspace_path:
-            try:
-                workspace_name = Path(workspace_path).name
-            except Exception:
-                pass
-
-        # 如果没有传入，从环境变量获取（hook 进程场景）
-        if not workspace_name:
-            try:
-                import os
-                workspace_dir = os.getenv("AI_WORKSPACE_DIR") or os.getenv("CLAUDE_CODE_DIR")
-                if workspace_dir:
-                    workspace_name = Path(workspace_dir).name
-            except Exception:
-                pass
-
-        # 如果环境变量没有，从 workspace_manager 获取（服务进程场景）
-        if not workspace_name:
-            try:
-                from src.workspace_manager import get_workspace_manager
-                workspace_manager = get_workspace_manager()
-                current_workspace = workspace_manager.get_current_workspace()
-
-                if current_workspace:
-                    workspace_name = Path(current_workspace).name
-            except Exception:
-                pass  # 忽略异常，继续尝试其他方式
-
-        # 如果还没有获取到，使用当前工作目录（最后备选）
-        if not workspace_name:
-            try:
-                cwd = os.getcwd()
-                if cwd:
-                    workspace_name = Path(cwd).name
-            except Exception:
-                pass  # 忽略异常
+        workspace_name = get_workspace_name(workspace_path)
 
         # 添加工作空间标签到标题
         if workspace_name:
@@ -336,19 +399,20 @@ class CardDispatcher:
             )
 
             # 发送说明卡片（包含编号和时间）
-            feishu_message_id = await self._send_normal_card(
+            feishu_message_id, delivery_success = await self._send_normal_card(
                 user_id, card_type, title, display_content, template_color, card_id, timestamp
             )
         else:
             # 直接发送卡片（包含完整内容和元数据）
-            feishu_message_id = await self._send_normal_card(
+            feishu_message_id, delivery_success = await self._send_normal_card(
                 user_id, card_type, title, content, template_color, card_id, timestamp
             )
 
-        # 3. 存储纯内容到数据库
-        await self._store_message(
-            user_id, pure_content, card_id, message_type, feishu_message_id, message_source
-        )
+        # 3. 只有平台确认发送成功后才记录为已下发。
+        if delivery_success:
+            await self._store_message(
+                user_id, pure_content, card_id, message_type, feishu_message_id, message_source
+            )
 
         return feishu_message_id, file_key
 

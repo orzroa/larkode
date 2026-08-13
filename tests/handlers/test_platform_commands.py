@@ -17,6 +17,7 @@ class TestPlatformCommands:
     def mock_task_manager(self):
         """创建模拟的任务管理器"""
         tm = Mock()
+        tm.get_assistant_status.return_value = {"assistant_type": "claude_code"}
         return tm
 
     @pytest.fixture
@@ -100,12 +101,55 @@ class TestPlatformCommands:
     @pytest.mark.asyncio
     async def test_handle_command_model(self, platform_commands):
         """测试处理 #model 命令"""
-        with patch('src.handlers.platform_commands.CCRCommands') as mock_ccr:
+        settings = Mock()
+        settings.get_agent_backend.return_value = "claude_code"
+        with patch('src.handlers.platform_commands.get_settings', return_value=settings), \
+             patch('src.handlers.platform_commands.CCRCommands') as mock_ccr:
             mock_ccr_instance = Mock()
             mock_ccr_instance.handle_model_command = AsyncMock()
             mock_ccr.return_value = mock_ccr_instance
 
             await platform_commands.handle_command("user_123", "#model")
+
+    @pytest.mark.asyncio
+    async def test_handle_command_model_uses_codex_catalog(self, platform_commands):
+        platform_commands.tm.get_assistant_status.return_value = {"assistant_type": "codex"}
+        settings = Mock()
+        settings.get_agent_backend.return_value = "codex"
+        with patch('src.handlers.platform_commands.get_settings', return_value=settings), \
+             patch('src.handlers.codex_commands.CodexCommands') as codex_cls:
+            codex = Mock()
+            codex.show_model_option_card = AsyncMock()
+            codex_cls.return_value = codex
+
+            await platform_commands.handle_command("user_123", "#model")
+
+        codex.show_model_option_card.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_command_think_uses_codex_catalog(self, platform_commands):
+        platform_commands.tm.get_assistant_status.return_value = {"assistant_type": "codex"}
+        settings = Mock()
+        settings.get_agent_backend.return_value = "codex"
+        with patch('src.handlers.platform_commands.get_settings', return_value=settings), \
+             patch('src.handlers.codex_commands.CodexCommands') as codex_cls:
+            codex = Mock()
+            codex.show_effort_option_card = AsyncMock()
+            codex_cls.return_value = codex
+
+            await platform_commands.handle_command("user_123", "#think")
+
+        codex.show_effort_option_card.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_command_think_rejects_claude(self, platform_commands):
+        settings = Mock()
+        settings.get_agent_backend.return_value = "claude_code"
+        with patch('src.handlers.platform_commands.get_settings', return_value=settings), \
+             patch.object(platform_commands, '_send_error', new_callable=AsyncMock) as send_error:
+            await platform_commands.handle_command("user_123", "#think")
+
+        send_error.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_handle_command_unknown_returns_false(self, platform_commands):
@@ -217,7 +261,10 @@ class TestPlatformCommands:
     @pytest.mark.asyncio
     async def test_cmd_model(self, platform_commands):
         """测试模型命令"""
-        with patch('src.handlers.platform_commands.CCRCommands') as mock_ccr:
+        settings = Mock()
+        settings.get_agent_backend.return_value = "claude_code"
+        with patch('src.handlers.platform_commands.get_settings', return_value=settings), \
+             patch('src.handlers.platform_commands.CCRCommands') as mock_ccr:
             mock_instance = Mock()
             mock_instance.handle_model_command = AsyncMock()
             mock_ccr.return_value = mock_instance

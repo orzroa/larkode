@@ -104,6 +104,15 @@ class MessageSender:
         logger.debug(f"self.platform: {self.platform}")
         logger.debug(f"self.feishu: {self.feishu}")
 
+        # 带按钮的 dict 卡片由 CardDispatcher 统一补齐工作区、编号和时间。
+        if isinstance(card, dict) and self.card_dispatcher:
+            feishu_msg_id = await self.card_dispatcher.send_interactive_card(
+                user_id=user_id,
+                card=card,
+                message_type=message_type,
+            )
+            return bool(feishu_msg_id)
+
         # 构建消息内容
         content = ""
         if card is not None:
@@ -120,6 +129,7 @@ class MessageSender:
         # 先发送消息，获取飞书返回的 message_id
         feishu_msg_id = ""
         notification_sent = False  # 标记是否已通过 notification_sender 发送
+        delivery_success = False
 
         # 如果有专门的发送器，使用发送器
         if self._notification_sender:
@@ -139,6 +149,7 @@ class MessageSender:
                 logger.debug(f"notification_sender.send_card 返回：{result}")
                 if not result:
                     return result
+                delivery_success = True
                 # 尝试从 notification_sender 获取 message_id
                 feishu_msg_id = self._get_message_id_from_notification_sender("card")
             elif message is not None:
@@ -147,6 +158,7 @@ class MessageSender:
                 logger.debug(f"notification_sender.send_message 返回：{result}")
                 if not result:
                     return result
+                delivery_success = True
                 # 尝试从 notification_sender 获取 message_id
                 feishu_msg_id = self._get_message_id_from_notification_sender("message")
 
@@ -161,19 +173,22 @@ class MessageSender:
                 if isinstance(card, dict):
                     logger.debug("使用 feishu.send_message 发送 dict 卡片")
                     feishu_msg_id = await self.feishu.send_message(user_id, json.dumps(card, ensure_ascii=False)) or ""
+                    delivery_success = bool(feishu_msg_id)
                     logger.debug(f"feishu.send_message 返回：{feishu_msg_id}")
                 elif isinstance(card, NormalizedCard):
                     logger.debug("使用 platform.send_card 发送 NormalizedCard")
                     feishu_msg_id = await self.platform.send_card(user_id, card) or ""
+                    delivery_success = bool(feishu_msg_id)
                     logger.debug(f"platform.send_card 返回：{feishu_msg_id}")
 
             if message is not None and not feishu_msg_id:
                 logger.debug("使用 platform.send_message 发送文本消息")
                 feishu_msg_id = await self.platform.send_message(user_id, message) or ""
+                delivery_success = bool(feishu_msg_id)
                 logger.debug(f"platform.send_message 返回：{feishu_msg_id}")
 
         # 发送成功后记录消息（下行消息）
-        if feishu_msg_id or content:
+        if delivery_success:
             # 提取 card_id（如果发送的是卡片）
             card_id = None
             if card is not None and isinstance(card, NormalizedCard):
@@ -191,7 +206,7 @@ class MessageSender:
             )
             db.save_message(msg)
 
-        return True
+        return delivery_success
 
     async def send_error(self, user_id: str, error: str):
         """

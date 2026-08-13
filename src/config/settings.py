@@ -6,27 +6,27 @@ Pydantic Settings 配置管理
 import os
 from pathlib import Path
 from typing import Any, List, Optional
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 使用模块常量，避免 Pydantic 将类内下划线属性视为私有字段。
+ENV_FILE = Path(__file__).parent.parent.parent / ".env"
 
 
 class Settings(BaseSettings):
     """应用配置 - 使用 Pydantic Settings"""
 
-    # 使用绝对路径，确保无论从哪里调用都能正确加载 .env
-    # settings.py 在 src/config/，所以 parent.parent.parent = 项目根目录
-    _env_file = Path(__file__).parent.parent.parent / ".env"
-
     model_config = SettingsConfigDict(
-        env_file=str(_env_file),
+        env_file=str(ENV_FILE),
         env_file_encoding="utf-8",
         case_sensitive=False,
+        populate_by_name=True,
         extra="ignore",  # 忽略额外的环境变量
     )
 
     # ==================== 平台配置 ====================
     im_platform: str = Field(default="feishu", description="IM 平台类型")
-    ai_assistant_type: str = Field(default="claude_code", description="AI 助手类型")
+    agent_backend: str = Field(default="claude_code", description="Agent 后端（claude_code 或 codex）")
     enabled_im_platforms: str = Field(default="feishu", description="启用的 IM 平台列表")
 
     # ==================== 飞书配置 ====================
@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     feishu_enabled: bool = Field(default=True, description="是否启用飞书")
     feishu_message_receive_id_type: str = Field(default="open_id", description="消息接收 ID 类型")
     feishu_message_domain: str = Field(default="FEISHU_DOMAIN", description="飞书 API 域名")
+    feishu_allowed_user_id: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "FEISHU_ALLOWED_USER_ID",
+            "FEISHU_ALLOWED_USER_IDS",  # 旧配置名，仅用于单值迁移兼容
+        ),
+        description="唯一允许控制 Agent 的飞书用户 ID；空值回退到 Hook 通知用户",
+    )
 
     # ==================== 通用 AI 配置 ====================
     tmux_session_name: str = Field(
@@ -49,13 +57,17 @@ class Settings(BaseSettings):
     claude_code_cli_path: str = Field(default="", description="Claude Code CLI 路径")
     claude_code_session_id: str = Field(default="", description="Claude Code 会话 ID")
 
-    # ==================== iFlow 配置 ====================
-    iflow_cli: str = Field(default="iflow", description="iFlow CLI 路径")
-    iflow_dir: Path = Field(default=Path(""), description="iFlow 工作目录")
+    # ==================== Codex 配置 ====================
+    codex_cli_path: str = Field(default="codex", description="Codex CLI 路径")
+    codex_model: str = Field(default="gpt-5.6-terra", description="Codex 模型")
+    codex_reasoning_effort: str = Field(default="medium", description="Codex 推理强度")
+    codex_approval_policy: str = Field(default="on-request", description="Codex App Server 审批策略")
+    codex_sandbox: str = Field(default="workspace-write", description="Codex App Server 沙箱")
+    codex_request_timeout: float = Field(default=30.0, description="Codex 协议请求超时（秒）")
+    codex_approval_timeout: float = Field(default=300.0, description="Codex 审批等待超时（秒）")
 
     # ==================== Hook 配置 ====================
     ai_hook_script: str = Field(default="src/hook_handler.py", description="AI Hook 脚本路径")
-    iflow_hook_script: str = Field(default="src/hook_handler.py", description="iFlow Hook 脚本路径")
     hook_enabled: bool = Field(default=True, description="是否启用 Hook")
 
     # ==================== 卡片消息配置 ====================
@@ -88,6 +100,11 @@ class Settings(BaseSettings):
     # ==================== 文件消息配置 ====================
     use_file_for_long_content: bool = Field(default=True, description="长内容是否使用文件")
     upload_dir: Path = Field(default=Path("./uploads"), description="上传目录")
+    attachment_max_bytes: int = Field(
+        default=50 * 1024 * 1024,
+        ge=1,
+        description="单个入站附件最大字节数",
+    )
 
     # ==================== 截屏配置 ====================
     tmux_capture_lines: int = Field(default=200, description="截屏默认行数")
@@ -181,13 +198,66 @@ class Settings(BaseSettings):
             return Path(expanded)
         return v
 
+    @field_validator('codex_approval_policy', mode='before')
+    @classmethod
+    def normalize_codex_approval_policy(cls, value: Any) -> str:
+        aliases = {
+            "onRequest": "on-request",
+            "unlessTrusted": "untrusted",
+        }
+        normalized = aliases.get(str(value), str(value))
+        # granular 属于实验协议；当前客户端没有声明 experimentalApi，禁止误配。
+        allowed = {"untrusted", "on-request", "never"}
+        if normalized not in allowed:
+            raise ValueError(f"无效的 CODEX_APPROVAL_POLICY: {normalized}")
+        return normalized
+
+    @field_validator('codex_sandbox', mode='before')
+    @classmethod
+    def normalize_codex_sandbox(cls, value: Any) -> str:
+        aliases = {
+            "readOnly": "read-only",
+            "workspaceWrite": "workspace-write",
+            "dangerFullAccess": "danger-full-access",
+        }
+        normalized = aliases.get(str(value), str(value))
+        allowed = {"read-only", "workspace-write", "danger-full-access"}
+        if normalized not in allowed:
+            raise ValueError(f"无效的 CODEX_SANDBOX: {normalized}")
+        return normalized
+
+    @field_validator('feishu_allowed_user_id', mode='before')
+    @classmethod
+    def validate_single_feishu_controller(cls, value: Any) -> str:
+        """Larkode 是单用户遥控器：拒绝多控制者和通配符授权。"""
+        normalized = str(value or "").strip()
+        if normalized == "*":
+            raise ValueError("FEISHU_ALLOWED_USER_ID 不允许使用通配符 *")
+        if "," in normalized:
+            raise ValueError("Larkode 不支持多用户，FEISHU_ALLOWED_USER_ID 只能配置一个 ID")
+        return normalized
+
     # ==================== 方法 ====================
 
     def get_hook_script(self) -> str:
-        """根据 AI_ASSISTANT_TYPE 获取对应的 hook 脚本路径"""
-        if self.ai_assistant_type == "iflow":
-            return self.iflow_hook_script
+        """获取 Claude Code hook 脚本路径。Codex 使用 App Server 事件。"""
         return self.ai_hook_script
+
+    def get_agent_backend(self) -> str:
+        """获取有效 Agent 后端。"""
+        backend = self.agent_backend.strip().lower()
+        if backend not in {"claude_code", "codex"}:
+            raise ValueError(f"不支持的 Agent 后端: {backend}")
+        return backend
+
+    def set_codex_session_preferences(
+        self, model: Optional[str] = None, reasoning_effort: Optional[str] = None
+    ) -> None:
+        """更新当前进程的 Codex 偏好，不写入 .env。"""
+        if model is not None:
+            self.codex_model = model
+        if reasoning_effort is not None:
+            self.codex_reasoning_effort = reasoning_effort
 
     def is_hook_enabled(self) -> bool:
         """检查 hook 功能是否启用"""
@@ -200,15 +270,26 @@ class Settings(BaseSettings):
             return []
         return [p.strip().lower() for p in enabled_str.split(",") if p.strip()]
 
+    def get_feishu_allowed_user_id(self) -> str:
+        """返回唯一控制者的飞书 ID；默认使用通知接收人。"""
+        configured = self.feishu_allowed_user_id.strip()
+        if configured:
+            return configured
+        fallback = self.feishu_hook_notification_user_id.strip()
+        return fallback
+
+    def is_feishu_user_authorized(self, *user_ids: Optional[str]) -> bool:
+        """校验消息/卡片操作者；只允许配置的唯一控制者。"""
+        allowed = self.get_feishu_allowed_user_id()
+        return bool(allowed and allowed in (uid for uid in user_ids if uid))
+
     def is_platform_enabled(self, platform_name: str) -> bool:
         """检查指定平台是否启用"""
         return platform_name.lower() in self.get_enabled_platforms()
 
     def get_process_name(self) -> str:
         """获取当前 AI 助手的进程名"""
-        if self.ai_assistant_type == "iflow":
-            return "iflow"
-        return "claude"
+        return "codex" if self.get_agent_backend() == "codex" else "claude"
 
     def get_workspaces(self) -> List[dict]:
         """[已废弃] 获取工作空间列表，请使用 WorkspaceManager"""
@@ -263,10 +344,25 @@ class Settings(BaseSettings):
             self.upload_dir = project_root / self.upload_dir
 
         # 创建目录
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        self.upload_dir.mkdir(parents=True, exist_ok=True)
+        private_dirs = {
+            self.data_dir,
+            self.db_path.parent,
+            self.log_dir,
+            self.upload_dir,
+        }
+        for directory in private_dirs:
+            directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+            directory.chmod(0o700)
+
+        # .env、数据库和历史运行日志均可能包含凭据或完整对话。
+        if ENV_FILE.exists():
+            ENV_FILE.chmod(0o600)
+        if self.db_path.exists():
+            self.db_path.chmod(0o600)
+        for directory in (self.log_dir, self.upload_dir):
+            for path in directory.iterdir():
+                if path.is_file() and not path.is_symlink():
+                    path.chmod(0o600)
 
     def __setattr__(self, name: str, value: Any):
         """支持大小写不敏感的属性设置"""
@@ -336,4 +432,3 @@ def reload_settings() -> Settings:
 
 
 Config = get_settings()
-

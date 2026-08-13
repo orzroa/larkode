@@ -1,6 +1,7 @@
 """
 飞书文件操作：下载、上传
 """
+import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
@@ -120,12 +121,13 @@ def _get_save_path(file_key: str, save_dir: Optional[Path] = None) -> Path:
     """生成保存路径"""
     if save_dir is None:
         save_dir = Path(__file__).parent.parent.parent / "uploads"
-    save_dir.mkdir(parents=True, exist_ok=True)
+    save_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    save_dir.chmod(0o700)
 
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
-    # 使用 file_key 的前8字符，避免路径过长
-    short_key = file_key[:8] if len(file_key) > 8 else file_key
-    file_path = save_dir / f"{timestamp}_{short_key}"
+    # file_key 属于远端输入，不直接拼入本地路径。
+    key_digest = hashlib.sha256(file_key.encode("utf-8")).hexdigest()[:16]
+    file_path = save_dir / f"{timestamp}_{key_digest}"
     return file_path
 
 
@@ -173,6 +175,11 @@ async def download_file(
         file_name = getattr(response, 'file_name', None)
         if not file_name:
             file_name = f"feishu_{file_key}.txt"
+        # 服务端文件名只作为名称使用，不能携带目录层级或控制字符。
+        file_name = Path(str(file_name).replace("\\", "/")).name
+        file_name = "".join(ch for ch in file_name if ch.isprintable()).strip()
+        if not file_name:
+            file_name = f"feishu_{file_key}.txt"
 
         # 限制文件名长度，避免路径过长导致 stdin 截断
         max_filename_len = 50  # 限制文件名长度
@@ -188,8 +195,22 @@ async def download_file(
 
         # 保存文件
         file_obj = response.file
-        with open(file_path, "wb") as f:
-            f.write(file_obj.read())
+        max_bytes = get_settings().attachment_max_bytes
+        written = 0
+        try:
+            with open(file_path, "wb") as f:
+                while True:
+                    chunk = file_obj.read(min(1024 * 1024, max_bytes - written + 1))
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > max_bytes:
+                        raise ValueError(f"附件超过大小限制: {max_bytes} bytes")
+                    f.write(chunk)
+        except Exception:
+            file_path.unlink(missing_ok=True)
+            raise
+        file_path.chmod(0o600)
 
         # 文件类型识别：图片和音频是两个独立分支，互斥处理
         valid_image_exts = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}

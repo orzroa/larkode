@@ -4,10 +4,12 @@
 #   "lark-oapi>=1.5.3",
 #   "python-dotenv>=1.0.0",
 #   "pydantic>=2.5.3",
-#   "pydantic-settings>=2.0.0",
+#   "pydantic-settings>=2.14.2",
 #   "psutil>=5.9.0",
-#   "aiohttp>=3.8.0",
-#   "pytest-asyncio>=0.21.0"
+#   "aiohttp>=3.14.3",
+#   "requests>=2.33.0",
+#   "urllib3>=2.7.0",
+#   "idna>=3.15"
 # ]
 # ///
 """
@@ -29,6 +31,9 @@ import signal
 import sys
 import threading
 from pathlib import Path
+
+# Larkode 会持久化凭据、完整对话和 Agent 输出；覆盖 Supervisor/外壳的宽松 umask。
+os.umask(0o077)
 
 import lark_oapi as lark
 
@@ -96,6 +101,7 @@ class ClaudeFeishuService:
         self._tasks: list[asyncio.Task] = []
         self._interaction_monitor_task: asyncio.Task = None
         self._queue_monitor_task: asyncio.Task = None
+        self._main_loop: asyncio.AbstractEventLoop = None
 
         # 创建事件处理器
         self._do_p2_im_message_receive_v1, self._do_p2_card_action_trigger = create_event_handlers(
@@ -232,7 +238,15 @@ class ClaudeFeishuService:
 
     async def start(self):
         """启动服务"""
-        logger.info("Claude Feishu Integration 启动中...")
+        self._main_loop = asyncio.get_running_loop()
+        # 飞书 SDK 在独立线程回调；所有异步业务固定投递到服务主循环。
+        self._do_p2_im_message_receive_v1, self._do_p2_card_action_trigger = create_event_handlers(
+            interaction_manager, feishu_api_instance, owner_loop=self._main_loop
+        )
+        logger.info(
+            "Larkode Agent 服务启动中，后端: %s",
+            get_settings().get_agent_backend(),
+        )
 
         # 设置交互响应文件路径
         set_interaction_response_file_path(INTERACTION_RESPONSE_FILE)
@@ -242,7 +256,10 @@ class ClaudeFeishuService:
 
         # 启动任务管理器
         await task_manager.start()
-        logger.info("任务管理器已启动")
+        logger.info(
+            "任务管理器已启动，实际助手: %s",
+            task_manager.get_assistant_status().get("assistant_type", "unknown"),
+        )
 
         # 为每个有 WebSocket 的平台启动客户端
         for platform_name, ws_info in self._ws_clients.items():

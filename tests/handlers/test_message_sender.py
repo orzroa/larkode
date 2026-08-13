@@ -42,6 +42,7 @@ class TestMessageSender:
         """创建模拟的卡片分发器"""
         dispatcher = Mock()
         dispatcher.send_card = AsyncMock(return_value=True)
+        dispatcher.send_interactive_card = AsyncMock(return_value="interactive_msg_123")
         return dispatcher
 
     @pytest.fixture
@@ -98,8 +99,10 @@ class TestMessageSender:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_send_card_dict_fallback_to_feishu(self, message_sender, mock_feishu_api):
-        """测试发送 dict 类型的卡片时回退到飞书 API"""
+    async def test_send_card_dict_uses_card_dispatcher(
+        self, message_sender, mock_feishu_api, mock_card_dispatcher
+    ):
+        """dict 交互卡片必须通过统一 CardDispatcher 发送。"""
         message_sender._notification_sender = None
 
         with patch('src.storage.db') as mock_db:
@@ -108,7 +111,12 @@ class TestMessageSender:
                 card={"key": "value"}
             )
 
-        mock_feishu_api.send_message.assert_called_once()
+        mock_card_dispatcher.send_interactive_card.assert_awaited_once_with(
+            user_id="test_user",
+            card={"key": "value"},
+            message_type="response",
+        )
+        mock_feishu_api.send_message.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_send_card_normalized_fallback_to_platform(self, message_sender, mock_platform):

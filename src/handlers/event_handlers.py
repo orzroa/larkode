@@ -1,17 +1,11 @@
-"""
-事件处理器
+"""飞书 SDK 同步回调与服务主事件循环之间的安全桥接。"""
 
-处理飞书消息事件和卡片交互事件
-"""
-import json
-import logging
 import asyncio
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+import logging
+from typing import TYPE_CHECKING, Optional
 
 from src.config.settings import get_settings
 
-# 避免循环导入
 if TYPE_CHECKING:
     from src.feishu import FeishuAPI
     from src.interaction_manager import InteractionManager
@@ -19,172 +13,138 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def create_event_handlers(interaction_manager: "InteractionManager", feishu_api_instance: "FeishuAPI"):
+def create_event_handlers(
+    interaction_manager: "InteractionManager",
+    feishu_api_instance: "FeishuAPI",
+    owner_loop: Optional[asyncio.AbstractEventLoop] = None,
+):
+    """创建供 lark_oapi 调用的同步处理器。
+
+    生产环境应传入服务主循环。飞书 SDK 的 WebSocket 线程只负责解析事件，
+    不创建临时事件循环，也不直接操作绑定在主循环上的 asyncio 对象。
     """
-    创建事件处理器（同步函数，供 lark_oapi SDK 调用）
 
-    注意：lark_oapi SDK 的 EventDispatcherHandler.do() 是同步方法，
-    因此处理器必须是同步函数，内部使用 asyncio.create_task() 来运行异步代码
+    def _report_done(future) -> None:
+        try:
+            future.result()
+        except Exception:
+            logger.exception("飞书事件异步处理失败")
 
-    Args:
-        interaction_manager: 交互管理器实例
-        feishu_api_instance: 飞书 API 实例
+    def _submit(coro) -> None:
+        if owner_loop is not None:
+            if not owner_loop.is_running():
+                coro.close()
+                raise RuntimeError("Larkode 主事件循环尚未运行")
+            future = asyncio.run_coroutine_threadsafe(coro, owner_loop)
+            future.add_done_callback(_report_done)
+            return
 
-    Returns:
-        tuple: (do_p2_im_message_receive_v1, do_p2_card_action_trigger)
-    """
+        # 仅供单元测试或嵌入式同步调用；生产入口总是传 owner_loop。
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(coro)
+        else:
+            task = running_loop.create_task(coro)
+            task.add_done_callback(_report_done)
+
+    def _identity_values(identity) -> tuple[Optional[str], ...]:
+        if identity is None:
+            return ()
+        return tuple(
+            getattr(identity, name, None)
+            for name in ("open_id", "user_id", "union_id")
+        )
+
+    def _authorized(identity) -> bool:
+        ids = _identity_values(identity)
+        if get_settings().is_feishu_user_authorized(*ids):
+            return True
+        logger.warning("拒绝未授权的飞书控制请求")
+        return False
+
+    async def _handle_message_once(event_data: dict, message_id: str) -> None:
+        """在 owner loop 内原子认领；处理失败则释放，允许平台重投。"""
+        from src.message_handler import message_handler
+        from src.storage import db
+
+        source = "feishu:im.message.receive_v1"
+        if not db.claim_inbound_event(source, message_id):
+            logger.info("忽略重复投递的飞书消息: message_id=%s", message_id)
+            return
+        try:
+            await message_handler.handle_event(event_data)
+        except BaseException:
+            db.release_inbound_event(source, message_id)
+            raise
 
     def do_p2_im_message_receive_v1(data):
-        """
-        处理消息接收事件（同步包装器）
-
-        Args:
-            data: P2ImMessageReceiveV1 对象
-        """
         try:
-            logger.info(f"收到消息事件")
-
-            # 不打印完整的消息内容，避免刷屏
-            # 只记录关键字段
-            try:
-                event_obj = data.event
-                if hasattr(event_obj, 'message') and hasattr(event_obj.message, 'message_id'):
-                    logger.info(f"消息ID: {event_obj.message.message_id}")
-                if hasattr(event_obj, 'sender') and hasattr(event_obj.sender, 'sender_id'):
-                    logger.info(f"发送者ID: {event_obj.sender.sender_id}")
-            except Exception as e:
-                logger.debug(f"无法提取消息关键信息: {e}")
-
-            # data 是 P2ImMessageReceiveV1 对象
             event_obj = data.event
-
-            # 解析事件数据为 message_handler 期望的格式
-            # 注意：content 是一个 JSON 字符串，需要解析
+            sender_id = event_obj.sender.sender_id
+            message_id = event_obj.message.message_id
+            if not _authorized(sender_id):
+                return
+            if not message_id:
+                logger.warning("拒绝缺少 message_id 的飞书消息")
+                return
+            logger.info("收到飞书消息: message_id=%s", message_id)
             event_data = {
                 "type": "im.message.receive_v1",
                 "event": {
                     "sender": {
                         "sender_id": {
-                            "open_id": event_obj.sender.sender_id.open_id,
-                            "user_id": event_obj.sender.sender_id.user_id
+                            "open_id": getattr(sender_id, "open_id", None),
+                            "user_id": getattr(sender_id, "user_id", None),
+                            "union_id": getattr(sender_id, "union_id", None),
                         }
                     },
                     "message": {
-                        "message_id": event_obj.message.message_id,
-                        "content": event_obj.message.content,  # JSON 字符串
+                        "message_id": message_id,
+                        "content": event_obj.message.content,
                         "msg_type": event_obj.message.message_type,
-                        "create_time": event_obj.message.create_time
+                        "create_time": event_obj.message.create_time,
                     },
-                    "chat_type": event_obj.message.chat_type
-                }
+                    "chat_type": event_obj.message.chat_type,
+                },
             }
-
-            # 打印事件数据（调试用）
-            logger.info(f"事件数据类型: {event_data.get('type')}")
-            msg_type = event_data.get("event", {}).get("message", {}).get("msg_type")
-            logger.info(f"消息类型: {msg_type}")
-
-            # 使用 asyncio.create_task 在后台运行消息处理器
-            # 这样可以避免阻塞 SDK 的事件循环
-            from src.message_handler import message_handler
-            logger.info(f"准备调用 message_handler.handle_event...")
-
-            # 在新的事件循环中运行异步代码（因为 SDK 可能在非异步上下文中调用）
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # 如果当前有事件循环在运行，创建任务
-                    task = asyncio.create_task(message_handler.handle_event(event_data))
-                    # 确保任务完成或被正确处理
-                    task.add_done_callback(lambda t: t.exception() if not t.done() else None)
-                else:
-                    # 如果没有事件循环在运行，运行异步代码
-                    loop.run_until_complete(message_handler.handle_event(event_data))
-            except RuntimeError:
-                # 如果没有事件循环，创建新的
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                try:
-                    new_loop.run_until_complete(message_handler.handle_event(event_data))
-                finally:
-                    new_loop.close()
-
-            logger.info(f"message_handler.handle_event 已调用")
-
-        except Exception as e:
-            logger.error(f"处理消息事件时出错: {e}", exc_info=True)
+            _submit(_handle_message_once(event_data, message_id))
+        except Exception:
+            logger.exception("处理飞书消息事件失败")
 
     def do_p2_card_action_trigger(data):
-        """
-        处理卡片交互触发事件（同步包装器）
-
-        Args:
-            data: P2CardActionTrigger 对象
-        """
         try:
-            logger.info(f"收到卡片交互事件")
-
-            # 打印原始事件数据（用于调试）
-            try:
-                if hasattr(data, '__dict__'):
-                    event_dict = data.__dict__
-                    logger.info(f"卡片交互原始事件 (JSON): {json.dumps(event_dict, ensure_ascii=False, default=str)}")
-
-                event_obj = data.event
-                if hasattr(event_obj, '__dict__'):
-                    logger.info(f"event_obj (JSON): {json.dumps(event_obj.__dict__, ensure_ascii=False, default=str)}")
-
-                # 提取关键信息
-                action_value = None
-                form_value = None
-                if hasattr(event_obj, 'action'):
-                    if hasattr(event_obj.action, 'value'):
-                        action_value = event_obj.action.value
-                    if hasattr(event_obj.action, 'form_value'):
-                        form_value = event_obj.action.form_value
-
-                operator_info = {}
-                if hasattr(event_obj, 'operator'):
-                    if hasattr(event_obj.operator, '__dict__'):
-                        operator_info = event_obj.operator.__dict__
-
-                context_info = {}
-                if hasattr(event_obj, 'context'):
-                    if hasattr(event_obj.context, '__dict__'):
-                        context_info = event_obj.context.__dict__
-
-                logger.info(f"Action value: {action_value}")
-                logger.info(f"Form value: {form_value}")
-                logger.info(f"Operator: {operator_info}")
-                logger.info(f"Context: {context_info}")
-
-            except Exception as e:
-                logger.info(f"无法转换卡片交互事件为 JSON: {e}")
-
-            # 构建交互数据
+            event_obj = data.event
+            operator = getattr(event_obj, "operator", None)
+            if not _authorized(operator):
+                return
+            action = getattr(event_obj, "action", None)
+            context = getattr(event_obj, "context", None)
+            action_value = getattr(action, "value", None)
+            category = action_value.get("cat") if isinstance(action_value, dict) else None
+            logger.info(
+                "收到飞书卡片交互: category=%s message_id=%s",
+                category,
+                getattr(context, "open_message_id", None),
+            )
             interaction_data = {
                 "action_value": action_value,
-                "form_value": form_value,
-                "operator": operator_info,
-                "context": context_info
+                "form_value": getattr(action, "form_value", None),
+                "operator": {
+                    name: getattr(operator, name, None)
+                    for name in ("open_id", "user_id", "union_id")
+                },
+                "context": {
+                    "open_message_id": getattr(context, "open_message_id", None),
+                    "open_chat_id": getattr(context, "open_chat_id", None),
+                },
             }
-
-            # 在新的事件循环中运行异步代码
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(interaction_manager.handle_card_interaction(interaction_data, feishu_api_instance))
-                else:
-                    loop.run_until_complete(interaction_manager.handle_card_interaction(interaction_data, feishu_api_instance))
-            except RuntimeError:
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                try:
-                    new_loop.run_until_complete(interaction_manager.handle_card_interaction(interaction_data, feishu_api_instance))
-                finally:
-                    new_loop.close()
-
-        except Exception as e:
-            logger.error(f"处理卡片交互事件时出错: {e}", exc_info=True)
+            _submit(
+                interaction_manager.handle_card_interaction(
+                    interaction_data, feishu_api_instance
+                )
+            )
+        except Exception:
+            logger.exception("处理飞书卡片交互事件失败")
 
     return do_p2_im_message_receive_v1, do_p2_card_action_trigger

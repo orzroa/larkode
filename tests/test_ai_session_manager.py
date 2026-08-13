@@ -219,20 +219,20 @@ class TestIsAIRunning:
             result = manager.is_ai_running()
             assert result is False
 
-    def test_is_ai_running_with_iflow_process(self):
-        """测试 iFlow 进程"""
+    def test_is_ai_running_with_codex_process(self):
+        """测试配置返回的 Agent 进程名"""
         manager = AISessionManager()
 
         mock_proc = MagicMock()
         mock_proc.info = {
             'pid': 12345,
-            'name': 'iflow',
+            'name': 'codex',
             'cwd': str(manager._workspace),
-            'cmdline': ['iflow']
+            'cmdline': ['codex']
         }
 
         with patch('src.ai_session_manager.get_settings') as mock_settings:
-            mock_settings.return_value.get_process_name.return_value = "iflow"
+            mock_settings.return_value.get_process_name.return_value = "codex"
 
             with patch('psutil.process_iter') as mock_iter:
                 mock_iter.return_value = [mock_proc]
@@ -332,5 +332,4 @@ class TestEdgeCases:
                     # 当前代码不捕获 PermissionError，会抛出异常
                     with pytest.raises(PermissionError):
                         manager.find_running_session()
-
 

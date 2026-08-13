@@ -116,7 +116,8 @@ class NormalizedCard:
 
         # 时间戳（如果未提供则自动生成）
         if timestamp is None:
-            self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # 统一使用 ISO 8601，保留微秒，便于跨进程关联 Hook/Agent 事件。
+            self.timestamp = datetime.now().isoformat()
         else:
             self.timestamp = timestamp
 
@@ -142,7 +143,7 @@ class NormalizedCard:
         Returns:
             str: 包含元数据的展示内容
         """
-        return f"📨 **卡片编号**: {self.card_id}\n🕒 `{self.timestamp}`\n{self._pure_content}"
+        return f"📨 卡片编号: {self.card_id}\n🕒 {self.timestamp}\n{self._pure_content}"
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""

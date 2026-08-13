@@ -8,9 +8,11 @@ from src.ai_assistants.default import (
     DefaultSessionManager,
     register_default_assistant,
 )
+from src.ai_assistants.codex import register_codex_assistant
 
 __all__ = [
     "DefaultAIInterface",
     "DefaultSessionManager",
     "register_default_assistant",
+    "register_codex_assistant",
 ]
